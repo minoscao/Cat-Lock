@@ -1,0 +1,14 @@
+.character-layer{clip-path:inset(0 0 28% 0)}
+.penguin{left:31%;bottom:32%;width:21%;transform-origin:27% 65%;animation:idle-breathe 3.2s ease-in-out infinite}
+.cat{left:56%;bottom:32%;width:19%;transform-origin:50% 78%;animation:idle-breathe 3.5s ease-in-out infinite}
+.character-layer:before,.character-layer:after{content:"";position:absolute;z-index:3;display:none;background-repeat:no-repeat;background-size:200% 200%;pointer-events:none}
+.character-layer:before{left:31%;bottom:32%;width:21%;aspect-ratio:1;background-image:url('/public/images/penguin-pour-sprites-v2.png')}
+.character-layer:after{left:56%;bottom:32%;width:19%;aspect-ratio:1;background-image:url('/public/images/cat-grind-sprites-v1.png')}
+.working .character{display:none}
+.working .character-layer:before,.working .character-layer:after{display:block;animation:sprite-cycle 2s steps(1,end) infinite}
+@keyframes sprite-cycle{0%,24.9%{background-position:0 0}25%,49.9%{background-position:100% 0}50%,74.9%{background-position:0 100%}75%,100%{background-position:100% 100%}}
+@keyframes idle-breathe{50%{transform:translateY(-2px) scale(1.008)}}
+.pour-stream,.grinder-crank{display:none!important}
+.order-board{left:5.4vw;bottom:13.5vh;width:188px;min-height:219px;padding:23px 17px 15px;transform:rotate(-4deg)}
+.order-board:hover{transform:rotate(-4deg) translateY(-3px)}
+@media(max-width:700px){.character-layer{clip-path:inset(0 0 23% 0)}.penguin{left:30%;bottom:36%;width:27%}.cat{left:56%;bottom:36%;width:24%}.character-layer:before{left:30%;bottom:36%;width:27%}.character-layer:after{left:56%;bottom:36%;width:24%}.order-board{left:5.2%;bottom:15%;width:144px;min-height:173px;padding:17px 12px 10px}}

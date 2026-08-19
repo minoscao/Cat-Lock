@@ -1,0 +1,11 @@
+.room-art {
+  background-image: url('/public/images/cat-room/room-overview-initial-day-master-v1.png');
+}
+
+.focus-art {
+  background-image: url('/public/images/cat-room/rug-focus-crisp-v1.png');
+}
+
+.cat-zone {
+  display: none;
+}
