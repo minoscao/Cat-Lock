@@ -2,8 +2,8 @@
 .penguin{left:31%;bottom:32%;width:21%;transform-origin:27% 65%;animation:idle-breathe 3.2s ease-in-out infinite}
 .cat{left:56%;bottom:32%;width:19%;transform-origin:50% 78%;animation:idle-breathe 3.5s ease-in-out infinite}
 .character-layer:before,.character-layer:after{content:"";position:absolute;z-index:3;display:none;background-repeat:no-repeat;background-size:200% 200%;pointer-events:none}
-.character-layer:before{left:31%;bottom:32%;width:21%;aspect-ratio:1;background-image:url('/public/images/penguin-pour-sprites-v2.png')}
-.character-layer:after{left:56%;bottom:32%;width:19%;aspect-ratio:1;background-image:url('/public/images/cat-grind-sprites-v1.png')}
+.character-layer:before{left:31%;bottom:32%;width:21%;aspect-ratio:1;background-image:url('/images/penguin-pour-sprites-v2.png')}
+.character-layer:after{left:56%;bottom:32%;width:19%;aspect-ratio:1;background-image:url('/images/cat-grind-sprites-v1.png')}
 .working .character{display:none}
 .working .character-layer:before,.working .character-layer:after{display:block;animation:sprite-cycle 2s steps(1,end) infinite}
 @keyframes sprite-cycle{0%,24.9%{background-position:0 0}25%,49.9%{background-position:100% 0}50%,74.9%{background-position:0 100%}75%,100%{background-position:100% 100%}}
