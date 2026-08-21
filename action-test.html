@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>猫咪动作测试</title>
+    <link rel="stylesheet" href="./src/action-test.css">
+  </head>
+  <body>
+    <main class="action-lab">
+      <section class="action-stage" aria-label="猫咪动作预览">
+        <canvas id="catActionCanvas" width="768" height="432"></canvas>
+      </section>
+      <p class="action-status" id="actionStatus" aria-live="polite">坐下待机</p>
+      <nav class="action-controls" aria-label="猫咪动作">
+        <button data-action="blink" type="button">眨眼</button>
+        <button data-action="groom" type="button">舔爪</button>
+        <button data-action="sleep" type="button">睡一会儿</button>
+        <button data-action="random" type="button">随机日常</button>
+      </nav>
+    </main>
+    <script type="module" src="./src/action-test.js"></script>
+  </body>
+</html>
