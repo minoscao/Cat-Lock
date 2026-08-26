@@ -9,6 +9,7 @@ const state = {
   active: false,
   duration: DEFAULT_FOCUS_SECONDS,
   remaining: DEFAULT_FOCUS_SECONDS,
+  endsAt: null,
   purpose: '',
   musicVolume: 55,
   catVolume: 70,
@@ -37,6 +38,7 @@ const catActions = {
   bellyWake: { source: '/videos/cat/scene-figure-layout-controls/belly-wake.mp4', duration: 6080 }
 };
 const ACTION_PAUSE_MS = 8 * 1000;
+const FOCUS_NOTIFICATION_ID = 1001;
 const app = document.querySelector('#app');
 let ticker;
 let catPauseTimer;
@@ -52,10 +54,31 @@ let sittingActionRequested = false;
 let nextCloserAt = 120;
 let lobbyIdleRounds = 0;
 
+async function scheduleFocusEndNotification() {
+  const notifications = window.Capacitor?.Plugins?.LocalNotifications;
+  if (!window.Capacitor?.isNativePlatform?.() || !notifications || !state.endsAt) return;
+  const endsAt = state.endsAt;
+  const permission = await notifications.requestPermissions().catch(() => undefined);
+  if (permission?.display !== 'granted' || !state.active || state.endsAt !== endsAt) return;
+  await notifications.schedule({
+    notifications: [{
+      id: FOCUS_NOTIFICATION_ID,
+      title: '专注完成',
+      body: state.purpose ? `“${state.purpose}”已经完成啦。` : '小猫已经等你回来啦。',
+      schedule: { at: new Date(endsAt) }
+    }]
+  }).catch(() => {});
+}
+function cancelFocusEndNotification() {
+  const notifications = window.Capacitor?.Plugins?.LocalNotifications;
+  if (!window.Capacitor?.isNativePlatform?.() || !notifications) return;
+  notifications.cancel({ notifications: [{ id: FOCUS_NOTIFICATION_ID }] }).catch(() => {});
+}
+
 function todayKey() { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); }
 function todayPaws() { return state.pawDays[todayKey()] || 0; }
 function formatTime(seconds) { return `${String(Math.floor(Math.max(0, seconds) / 60)).padStart(2, '0')}:${String(Math.max(0, seconds) % 60).padStart(2, '0')}`; }
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, pawDays: state.pawDays, musicVolume: state.musicVolume, catVolume: state.catVolume })); }
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, pawDays: state.pawDays, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume })); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
 
 function render() {
@@ -349,7 +372,16 @@ function startCatSequence() {
   showSeatedPose();
   scheduleSittingAction();
 }
-function startFocus() { clearCatVideo(); state.active = true; state.view = 'rug'; state.remaining = state.duration; state.editingDuration = false; state.editingPurpose = false; state.note = '它已经在地毯上坐好，安静陪着你。'; render(); startCatSequence(); clearInterval(ticker); ticker = setInterval(() => { state.remaining = Math.max(0, state.remaining - 1); const c = document.querySelector('#countdown'); if (c) c.textContent = formatTime(state.remaining); advanceCatTimeline(); }, 1000); }
+function syncFocusClock() {
+  if (!state.active || !state.endsAt) return;
+  state.remaining = Math.max(0, Math.ceil((state.endsAt - Date.now()) / 1000));
+  const countdown = document.querySelector('#countdown');
+  if (countdown) countdown.textContent = formatTime(state.remaining);
+  save();
+  advanceCatTimeline();
+}
+function startFocusClock() { clearInterval(ticker); syncFocusClock(); ticker = setInterval(syncFocusClock, 1000); }
+function startFocus() { clearCatVideo(); state.active = true; state.view = 'rug'; state.remaining = state.duration; state.endsAt = Date.now() + state.duration * 1000; state.editingDuration = false; state.editingPurpose = false; state.note = '它已经在地毯上坐好，安静陪着你。'; save(); void scheduleFocusEndNotification(); render(); startCatSequence(); startFocusClock(); }
 function updateFinishSlider(event) {
   const slider = event.currentTarget;
   const progress = Number(slider.value);
@@ -376,13 +408,16 @@ function endFocusEarly() {
 }
 function finishFocusEarly() {
   clearCatVideo();
+  cancelFocusEndNotification();
   state.active = false;
+  state.endsAt = null;
   state.view = 'rug';
   state.remaining = state.duration;
   state.note = '铃铛轻轻响了一声，它会在这里等你下次回来。';
+  save();
   render();
 }
-function completeFocus() { clearInterval(ticker); clearCatVideo(); state.active = false; state.view = 'reward'; state.remaining = state.duration; state.fish += 1; state.pawDays[todayKey()] = todayPaws() + 1; state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; save(); render(); setTimeout(() => { state.view = 'rug'; render(); }, 3600); }
+function completeFocus() { clearInterval(ticker); clearCatVideo(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; state.fish += 1; state.pawDays[todayKey()] = todayPaws() + 1; state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; save(); render(); setTimeout(() => { state.view = 'rug'; render(); }, 3600); }
 function openCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.add('open'); d.setAttribute('aria-hidden', 'false'); }
 function closeCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.remove('open'); d.setAttribute('aria-hidden', 'true'); }
 function openSettings() {
@@ -397,4 +432,18 @@ function closeSettings() {
   drawer.classList.remove('open');
   drawer.setAttribute('aria-hidden', 'true');
 }
-render();
+if (state.active && state.endsAt) {
+  state.remaining = Math.max(0, Math.ceil((state.endsAt - Date.now()) / 1000));
+  if (state.remaining > 0) {
+    render();
+    startCatSequence();
+    startFocusClock();
+  } else {
+    completeFocus();
+  }
+} else {
+  state.active = false;
+  state.endsAt = null;
+  render();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncFocusClock(); });

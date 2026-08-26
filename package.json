@@ -6,15 +6,22 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:sync": "npm run build && npx cap sync android",
+    "android:apk": "npm run android:sync && cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/local-notifications": "^8.3.1",
     "@fontsource/ma-shan-zheng": "^5.3.0",
     "@fontsource/zcool-kuaile": "^5.3.0",
     "lucide": "^0.468.0",
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
+    "typescript": "^7.0.2",
     "vite": "^6.0.5"
   }
 }
