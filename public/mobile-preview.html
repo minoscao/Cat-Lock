@@ -7,28 +7,94 @@
     <style>
       * { box-sizing: border-box; }
       body {
-        min-height: 100vh;
+        min-height: 100dvh;
         margin: 0;
         display: grid;
-        place-items: center;
+        grid-template-rows: auto minmax(0, 1fr);
+        overflow: hidden;
         background: #e8dccd;
+        color: #46553e;
         font-family: "Microsoft YaHei", system-ui, sans-serif;
       }
+      .preview-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-height: 54px;
+        padding: 9px 16px;
+        border-bottom: 1px solid rgba(83, 70, 50, .14);
+        background: rgba(255, 252, 244, .88);
+      }
+      .preview-toolbar label { font-size: 13px; font-weight: 700; }
+      .preview-toolbar select {
+        min-width: 182px;
+        min-height: 34px;
+        padding: 0 28px 0 11px;
+        border: 1px solid rgba(79, 105, 69, .34);
+        border-radius: 7px;
+        background: #fffdf7;
+        color: inherit;
+        font: inherit;
+      }
+      .preview-stage {
+        position: relative;
+        display: grid;
+        min-width: 0;
+        min-height: 0;
+        place-items: center;
+        overflow: hidden;
+        padding: 16px;
+      }
       .phone {
-        width: min(390px, 100vw);
-        height: min(844px, 100vh);
+        width: var(--phone-width, 390px);
+        height: var(--phone-height, 844px);
         overflow: hidden;
         background: #fff;
         box-shadow: 0 16px 42px rgba(64, 43, 29, .24);
+        transform: scale(var(--preview-scale, 1));
+        transform-origin: center;
       }
-      iframe {
-        width: 100%;
-        height: 100%;
-        border: 0;
+      iframe { width: 100%; height: 100%; border: 0; }
+      @media (max-width: 560px) {
+        .preview-toolbar { justify-content: space-between; }
+        .preview-toolbar label { font-size: 12px; }
+        .preview-toolbar select { min-width: 0; width: min(205px, 62vw); }
       }
     </style>
   </head>
   <body>
-    <main class="phone"><iframe src="/" title="手机端游戏预览"></iframe></main>
+    <header class="preview-toolbar">
+      <label for="deviceSelect">预览机型</label>
+      <select id="deviceSelect">
+        <option value="375x667">小屏手机 375 × 667</option>
+        <option value="390x844" selected>标准手机 390 × 844</option>
+        <option value="360x800">安卓常见 360 × 800</option>
+        <option value="412x915">安卓大屏 412 × 915</option>
+        <option value="430x932">大屏手机 430 × 932</option>
+      </select>
+    </header>
+    <main class="preview-stage" id="previewStage">
+      <section class="phone" id="phone"><iframe id="gamePreview" title="手机端游戏预览"></iframe></section>
+    </main>
+    <script>
+      const select = document.querySelector('#deviceSelect');
+      const stage = document.querySelector('#previewStage');
+      const phone = document.querySelector('#phone');
+      const gamePreview = document.querySelector('#gamePreview');
+
+      function fitPreview() {
+        const [width, height] = select.value.split('x').map(Number);
+        const scale = Math.min((stage.clientWidth - 32) / width, (stage.clientHeight - 32) / height, 1);
+        phone.style.setProperty('--phone-width', `${width}px`);
+        phone.style.setProperty('--phone-height', `${height}px`);
+        phone.style.setProperty('--preview-scale', scale);
+      }
+
+      select.addEventListener('change', fitPreview);
+      new ResizeObserver(fitPreview).observe(stage);
+      gamePreview.src = location.protocol === 'file:' ? 'http://localhost:4173/' : './index.html';
+      fitPreview();
+    </script>
   </body>
 </html>
