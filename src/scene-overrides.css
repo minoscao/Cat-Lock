@@ -1,9 +1,37 @@
+@font-face {
+  font-family: "ZCOOL KuaiLe";
+  font-style: normal;
+  font-weight: 400;
+  src: url('/fonts/zcool-kuaile.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: "Ma Shan Zheng";
+  font-style: normal;
+  font-weight: 400;
+  src: url('/fonts/ma-shan-zheng.woff2') format('woff2');
+}
+
 .room-art {
-  background-image: url('/images/cat-room/room-overview-initial-day-master-v1.png');
+  background-image: url('/images/cat-room/sofa-room-idle-v1.png');
+}
+
+.room,
+.room button,
+.room input,
+.room output,
+.room p,
+.room h1,
+.room h2,
+.room label,
+.room small,
+.room span,
+.room strong {
+  font-family: "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
 }
 
 .focus-art {
-  background-image: url('/images/cat-room/rug-focus-empty-day-v2.png');
+  background-image: url('/images/cat-room/sofa-rug-focus-figure-layout-controls-v1.png');
 }
 
 .cat-zone {
@@ -13,32 +41,525 @@
 .cat-video-layer {
   position: absolute;
   z-index: 2;
-  left: 20%;
-  bottom: 28%;
-  width: min(52vw, 680px);
-  aspect-ratio: 16 / 9;
+  inset: 0;
   opacity: 0;
   pointer-events: none;
-  transform-origin: center bottom;
 }
 
-.room.is-focusing .cat-video-layer {
+.room.is-close .cat-video-layer {
   opacity: 1;
 }
 
-.cat-video-layer canvas {
+.cat-animation {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 9px 7px rgba(67, 43, 26, .22));
-  transform-origin: center bottom;
+  object-fit: cover;
+  opacity: 0;
 }
 
-.cat-video-layer.is-idle canvas {
-  animation: cat-idle-breath 4.8s ease-in-out infinite;
+.cat-animation.is-active {
+  opacity: 1;
 }
 
-@keyframes cat-idle-breath {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.004, 1.009); }
+.room.is-close .focus-panel {
+  top: max(84px, calc(env(safe-area-inset-top) + 70px));
+  bottom: auto;
+  width: min(276px, calc(100% - 40px));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #415843;
+  transform: translateX(-50%);
+}
+
+.timer-setup {
+  display: grid;
+  gap: 7px;
+}
+
+.timer-row {
+  position: relative;
+  display: grid;
+  min-height: 68px;
+  place-items: center;
+}
+
+.duration-button,
+.purpose-button {
+  border: 0;
+  background: transparent;
+  color: #587653;
+  cursor: pointer;
+  transition: background .16s ease, transform .16s ease;
+}
+
+.duration-button {
+  min-width: 168px;
+  min-height: 64px;
+  padding: 0;
+}
+
+.duration-button strong {
+  color: #557850;
+  font: 400 54px/.95 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 0 rgba(255, 252, 245, 0.72);
+}
+
+.purpose-button {
+  position: absolute;
+  top: 8px;
+  right: 4px;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  padding: 0;
+}
+
+.purpose-button::before {
+  position: absolute;
+  inset: 5px 7px 4px 5px;
+  border: 2px solid #667b56;
+  border-radius: 5px;
+  background: #f4d98d;
+  box-shadow: 3px 3px 0 #e9ba72;
+  content: "";
+  transform: rotate(-7deg);
+}
+
+.purpose-button::after {
+  position: absolute;
+  top: 6px;
+  left: 13px;
+  width: 18px;
+  height: 5px;
+  border-radius: 999px;
+  background: #fef6d9;
+  content: "";
+  transform: rotate(-7deg);
+}
+
+.note-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  color: #52694b;
+  transform: rotate(-7deg);
+}
+
+.note-icon {
+  object-fit: contain;
+}
+
+.focus-title {
+  margin: 0;
+  color: #456644;
+  font: 400 22px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+  text-shadow: 0 1px 8px rgba(255, 253, 247, 0.8);
+}
+
+.inline-editor {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+
+.inline-editor label,
+.inline-editor input {
+  min-width: 0;
+}
+
+.inline-editor label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(83, 113, 71, 0.22);
+  background: rgba(255, 253, 248, 0.8);
+  backdrop-filter: blur(8px);
+  color: #61715c;
+  font-size: 11px;
+}
+
+.inline-editor input {
+  width: 100%;
+  height: 44px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #425943;
+  font: inherit;
+}
+
+.purpose-editor input {
+  padding: 0 8px;
+  border: 1px solid rgba(83, 113, 71, 0.22);
+  border-radius: 4px;
+  background: rgba(255, 253, 248, 0.8);
+  backdrop-filter: blur(8px);
+}
+
+.inline-editor button {
+  border: 1px solid rgba(83, 113, 71, 0.35);
+  border-radius: 4px;
+  background: #607b59;
+  color: #fffdf4;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.room.is-close:not(.is-focusing) .start-button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #334e35;
+  letter-spacing: 0;
+}
+
+.room.is-close:not(.is-focusing) .start-button span {
+  position: relative;
+  z-index: 0;
+  padding: 0 13px;
+  font-family: "Ma Shan Zheng", "Microsoft YaHei", cursive;
+  font-size: 36px;
+  line-height: 1;
+}
+
+.room.is-close:not(.is-focusing) .start-button span::before {
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 18px;
+  border: 2px solid rgba(103, 140, 99, 0.38);
+  border-radius: 50%;
+  content: "";
+  transform: translateY(-50%) rotate(-5deg);
+}
+
+.duration-button:active,
+.purpose-button:active,
+.room.is-close:not(.is-focusing) .start-button:active {
+  transform: scale(.97);
+}
+
+.duration-button:focus-visible,
+.purpose-button:focus-visible,
+.start-button:focus-visible,
+.top-icon-button:focus-visible,
+.close-button:focus-visible,
+.sound-setting input:focus-visible {
+  outline: 2px solid #56744f;
+  outline-offset: 3px;
+}
+
+.room.is-close .room-note {
+  display: none;
+}
+
+.topbar {
+  align-items: center;
+}
+
+.top-icon-button {
+  position: relative;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid rgba(93, 75, 47, 0.14);
+  border-radius: 50%;
+  background: rgba(255, 252, 244, 0.58);
+  box-shadow: 0 6px 18px rgba(92, 61, 34, 0.1);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: transform .16s ease, background .16s ease;
+}
+
+.top-icon-button img {
+  width: 21px;
+  height: 21px;
+  filter: invert(33%) sepia(16%) saturate(1024%) hue-rotate(48deg) brightness(91%) contrast(87%);
+}
+
+.top-icon-button:active {
+  transform: scale(.94);
+}
+
+.shop-top-button .fish-count {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  top: 50%;
+  left: calc(100% + 8px);
+  min-width: max-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #755434;
+  font: 400 18px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+  font-variant-numeric: tabular-nums;
+  transform: translateY(-50%);
+}
+
+.shop-top-button .fish-count img {
+  width: 17px;
+  height: 17px;
+  filter: invert(38%) sepia(18%) saturate(1422%) hue-rotate(350deg) brightness(90%) contrast(82%);
+}
+
+.focus-running .timer-row {
+  min-height: 68px;
+}
+
+.running-countdown {
+  color: #557850;
+  font: 400 54px/.95 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 0 rgba(255, 252, 245, 0.72);
+}
+
+.task-title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.task-paw {
+  width: 16px;
+  height: 16px;
+  opacity: .68;
+  filter: invert(33%) sepia(16%) saturate(1024%) hue-rotate(48deg) brightness(91%) contrast(87%);
+  transform: rotate(17deg);
+}
+
+.finish-slider {
+  position: absolute;
+  z-index: 6;
+  right: 20px;
+  bottom: max(20px, calc(env(safe-area-inset-bottom) + 8px));
+  left: 20px;
+  width: min(286px, calc(100% - 40px));
+  margin: auto;
+  color: #61785a;
+}
+
+.finish-track {
+  position: relative;
+  height: 64px;
+}
+
+.finish-track::before {
+  position: absolute;
+  z-index: 0;
+  top: 17px;
+  right: 0;
+  left: 35px;
+  height: 30px;
+  border: 1px solid rgba(74, 97, 63, .42);
+  border-radius: 999px;
+  background: rgba(177, 188, 137, .6);
+  box-shadow: inset 0 1px 0 rgba(255, 251, 222, .42), inset 0 -1px 0 rgba(75, 96, 63, .14), 0 5px 13px rgba(51, 46, 31, .08);
+  backdrop-filter: blur(8px);
+  content: "";
+}
+
+.finish-track-copy {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: 13px;
+  left: 48px;
+  color: #38533d;
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.finish-track-chevron {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: 14px;
+  color: #9b7140;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: -3px;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.finish-track input {
+  --finish-progress: 0%;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 64px;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  outline: 0;
+  appearance: none;
+  background: linear-gradient(90deg, rgba(247, 219, 126, .42) var(--finish-progress), transparent var(--finish-progress)) 35px center / calc(100% - 35px) 30px no-repeat;
+  box-shadow: none;
+  cursor: ew-resize;
+}
+
+.finish-track input::-webkit-slider-thumb {
+  width: 70px;
+  height: 70px;
+  border: 0;
+  border-radius: 50%;
+  appearance: none;
+  background: transparent url('/icons/cat-bell.svg') center calc(50% - 5px) / 70px 70px no-repeat;
+  box-shadow: 0 6px 12px rgba(52, 43, 27, .16);
+  cursor: grab;
+}
+
+.finish-track input:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+.settings-drawer {
+  position: absolute;
+  z-index: 11;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: max(76px, calc(env(safe-area-inset-top) + 62px)) 20px 20px;
+  background: rgba(47, 42, 30, 0.16);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+
+.settings-drawer.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.settings-sheet {
+  width: min(320px, 100%);
+  padding: 20px;
+  border: 1px solid rgba(100, 86, 58, 0.13);
+  border-radius: 8px;
+  background: rgba(255, 252, 244, 0.88);
+  box-shadow: 0 16px 36px rgba(67, 49, 31, 0.18);
+  backdrop-filter: blur(16px);
+  transform: translateY(-8px) scale(.98);
+  transition: transform .22s ease;
+}
+
+.settings-drawer.open .settings-sheet {
+  transform: translateY(0) scale(1);
+}
+
+.settings-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.settings-head p,
+.settings-hint {
+  margin: 0;
+  color: #7f7764;
+  font-size: 12px;
+}
+
+.settings-head h1 {
+  margin: 4px 0 0;
+  color: #456644;
+  font: 400 30px/1 "Ma Shan Zheng", "Microsoft YaHei", cursive;
+}
+
+.settings-sheet .close-button {
+  width: 40px;
+  height: 40px;
+  border-color: rgba(83, 113, 71, 0.18);
+  background: rgba(250, 244, 226, 0.74);
+  color: #587653;
+}
+
+.sound-setting {
+  margin-top: 18px;
+}
+
+.sound-setting > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+  color: #486448;
+  font-size: 14px;
+}
+
+.sound-setting output {
+  color: #9a7048;
+  font: 400 15px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+}
+
+.sound-setting input {
+  width: 100%;
+  accent-color: #66845f;
+}
+
+.settings-hint {
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(83, 113, 71, 0.25);
+}
+
+@media (max-width: 720px) and (orientation: portrait) {
+  .topbar {
+    top: max(12px, env(safe-area-inset-top));
+    left: max(14px, env(safe-area-inset-left));
+    right: max(14px, env(safe-area-inset-right));
+  }
+
+  .focus-panel {
+    bottom: max(14px, env(safe-area-inset-bottom));
+    width: min(320px, calc(100% - 32px));
+    padding: 10px 12px 11px;
+    border-width: 5px;
+  }
+
+  .room-note {
+    margin-top: 8px;
+    padding-top: 8px;
+    font-size: 11px;
+  }
+
+  .top-icon-button {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .duration-button,
+  .purpose-button,
+  .start-button {
+    transition: none;
+  }
 }
