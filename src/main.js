@@ -287,6 +287,18 @@ function beginBellyWake() {
     completeFocus();
   });
 }
+function beginFinishWake() {
+  if (catPose === 'belly-sleeping') {
+    beginBellyWake();
+    return;
+  }
+  if (catPose !== 'sleeping') return;
+  catPose = 'waking';
+  playCatVideo(catActions.wake.source, () => {
+    catPose = 'sitting';
+    completeFocus();
+  });
+}
 function beginEarlyWake() {
   if (!state.active || !earlyFinishRequested) return;
   if (catPose === 'belly-sleeping') {
@@ -309,7 +321,7 @@ function advanceCatTimeline() {
   const elapsed = elapsedFocusSeconds();
   if (elapsed >= state.duration) {
     finishRequested = true;
-    if (catPose === 'belly-sleeping') beginBellyWake();
+    beginFinishWake();
     if (catPose === 'sitting') completeFocus();
     return;
   }
@@ -355,8 +367,8 @@ function endFocusEarly() {
   clearInterval(ticker);
   earlyFinishRequested = true;
   document.querySelector('#finishSlider')?.remove();
-  if (catPose === 'belly-sleeping') {
-    playCatVideo(catActions.bellySleeping.source, beginEarlyWake);
+  if (catPose === 'sleeping' || catPose === 'belly-sleeping') {
+    beginEarlyWake();
     return;
   }
   if (['lying-down', 'sleeping', 'rolling-over', 'waking', 'belly-waking'].includes(catPose)) return;
