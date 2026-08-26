@@ -37,6 +37,23 @@
         color: inherit;
         font: inherit;
       }
+      .custom-size {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .custom-size[hidden] { display: none; }
+      .custom-size input {
+        width: 58px;
+        min-height: 34px;
+        padding: 0 7px;
+        border: 1px solid rgba(79, 105, 69, .34);
+        border-radius: 7px;
+        background: #fffdf7;
+        color: inherit;
+        font: inherit;
+      }
+      .custom-size span { font-size: 12px; }
       .preview-stage {
         position: relative;
         display: grid;
@@ -72,7 +89,13 @@
         <option value="360x800">安卓常见 360 × 800</option>
         <option value="412x915">安卓大屏 412 × 915</option>
         <option value="430x932">大屏手机 430 × 932</option>
+        <option value="custom">自定义尺寸</option>
       </select>
+      <div class="custom-size" id="customSize" hidden>
+        <input id="customWidth" type="number" min="320" max="600" value="390" inputmode="numeric" aria-label="自定义屏幕宽度" />
+        <span>×</span>
+        <input id="customHeight" type="number" min="480" max="1300" value="844" inputmode="numeric" aria-label="自定义屏幕高度" />
+      </div>
     </header>
     <main class="preview-stage" id="previewStage">
       <section class="phone" id="phone"><iframe id="gamePreview" title="手机端游戏预览"></iframe></section>
@@ -82,16 +105,27 @@
       const stage = document.querySelector('#previewStage');
       const phone = document.querySelector('#phone');
       const gamePreview = document.querySelector('#gamePreview');
+      const customSize = document.querySelector('#customSize');
+      const customWidth = document.querySelector('#customWidth');
+      const customHeight = document.querySelector('#customHeight');
 
       function fitPreview() {
-        const [width, height] = select.value.split('x').map(Number);
+        const [width, height] = select.value === 'custom'
+          ? [Number(customWidth.value), Number(customHeight.value)]
+          : select.value.split('x').map(Number);
+        if (!width || !height) return;
         const scale = Math.min((stage.clientWidth - 32) / width, (stage.clientHeight - 32) / height, 1);
         phone.style.setProperty('--phone-width', `${width}px`);
         phone.style.setProperty('--phone-height', `${height}px`);
         phone.style.setProperty('--preview-scale', scale);
       }
 
-      select.addEventListener('change', fitPreview);
+      select.addEventListener('change', () => {
+        customSize.hidden = select.value !== 'custom';
+        fitPreview();
+      });
+      customWidth.addEventListener('input', fitPreview);
+      customHeight.addEventListener('input', fitPreview);
       new ResizeObserver(fitPreview).observe(stage);
       gamePreview.src = location.protocol === 'file:' ? 'http://localhost:4173/' : './index.html';
       fitPreview();
