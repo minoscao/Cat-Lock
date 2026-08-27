@@ -614,6 +614,10 @@
   font: 400 29px/1 "Ma Shan Zheng", "Microsoft YaHei", cursive;
 }
 
+.stats-head h1:only-child {
+  margin-top: 2px;
+}
+
 .stats-summary {
   gap: 10px;
   padding: 13px 14px;
