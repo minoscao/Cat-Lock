@@ -20,6 +20,15 @@ const state = {
   statsPeriod: 'week',
   statsYear: new Date().getFullYear(),
   statsMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  statsSelectedDay: null,
+  statsSelectedMonthDay: new Date().getDate() - 1,
+  statsSelectedYearMonth: new Date().getMonth(),
+  statsPickerOpen: null,
+  statsDay: new Date(),
+  calendarOpen: false,
+  calendarYear: new Date().getFullYear(),
+  calendarMonth: new Date().getMonth(),
+  calendarPickerOpen: null,
   view: 'rug',
   note: '它已经在地毯上等你了。',
   ...saved
@@ -102,60 +111,200 @@ function formatMinutes(seconds) { const minutes = Math.round(seconds / 60); retu
 function dayKey(date) { const d = date || new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); }
 function recordsForDay(date) { const key = dayKey(date); return state.focusRecords.filter(record => dayKey(new Date(record.completedAt)) === key); }
 function totalSeconds(records) { return records.reduce((sum, record) => sum + record.duration, 0); }
-function chartPoints(values) { const max = Math.max(...values, 1); return values.map((value, index) => `${16 + index * 248 / Math.max(values.length - 1, 1)},${96 - value / max * 72}`).join(' '); }
-function chartBars(values) {
-  const max = Math.max(...values, 1);
-  const step = 248 / values.length;
+function chartScale(values) {
+  const minutes = Math.max(...values, 0) / 60;
+  if (!minutes) return 0;
+  const target = minutes * 1.15;
+  const base = 10 ** Math.floor(Math.log10(target));
+  const step = [1, 2, 5, 10].find(value => value * base >= target) * base;
+  return step * 60;
+}
+function chartPoints(values, max) {
+  if (!max) return [];
+  return values.map((value, index) => value ? { value, index, point: `${44 + index * 260 / Math.max(values.length - 1, 1)},${96 - value / max * 72}` } : null).filter(Boolean);
+}
+function chartBars(values, max, selectedIndex) {
+  if (!max) return '';
+  const step = 260 / values.length;
   const width = Math.min(22, step * .58);
   return values.map((value, index) => {
-    const height = value ? Math.max(5, value / max * 72) : 3;
-    return `<rect class="stats-bar" x="${16 + index * step + (step - width) / 2}" y="${96 - height}" width="${width}" height="${height}" rx="${width / 2}"></rect>`;
+    if (!value) return '';
+    const height = Math.max(5, value / max * 72);
+    return `<rect class="stats-bar ${index === selectedIndex ? 'is-selected' : ''}" data-chart-index="${index}" x="${44 + index * step + (step - width) / 2}" y="${96 - height}" width="${width}" height="${height}" rx="${width / 2}"><title>${formatMinutes(value)}</title></rect>`;
   }).join('');
 }
+function chartYAxis(max) {
+  const labels = [[24, max], [60, max / 2], [96, 0]];
+  return `${labels.map(([y, value]) => `<text class="stats-y-label" x="37" y="${y + 4}" text-anchor="end">${Math.round(value / 60)}分</text>`).join('')}<path class="stats-grid" d="M44 24H304M44 60H304M44 96H304"></path>`;
+}
+function emptyChartYAxis() {
+  return `<text class="stats-y-label" x="37" y="28" text-anchor="end">--</text><text class="stats-y-label" x="37" y="64" text-anchor="end">--</text><text class="stats-y-label" x="37" y="100" text-anchor="end">0分</text><path class="stats-grid" d="M44 24H304M44 60H304M44 96H304"></path>`;
+}
 function monthLabel(date) { return `${date.getMonth() + 1} 月`; }
+function firstFocusDate() {
+  if (!state.focusRecords.length) return new Date();
+  return new Date(Math.min(...state.focusRecords.map(record => record.completedAt)));
+}
+function hasFocusInMonth(year, month) {
+  return state.focusRecords.some(record => {
+    const date = new Date(record.completedAt);
+    return date.getFullYear() === year && date.getMonth() === month;
+  });
+}
+function hasFocusInYear(year) { return state.focusRecords.some(record => new Date(record.completedAt).getFullYear() === year); }
+function hasFocusOnDay(year, month, day) {
+  return state.focusRecords.some(record => {
+    const date = new Date(record.completedAt);
+    return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day;
+  });
+}
+function pickerButton(label, key, menu) {
+  return `<div class="stats-picker-field"><button class="stats-picker-trigger" type="button" data-picker-toggle="${key}" aria-expanded="${state.statsPickerOpen === key}"><span>${label}</span><i aria-hidden="true"></i></button>${state.statsPickerOpen === key ? `<div class="stats-picker-menu">${menu}</div>` : ''}</div>`;
+}
+function calendarPickerButton(label, key, menu) {
+  return `<div class="calendar-picker-field"><button class="calendar-picker-trigger" type="button" data-calendar-toggle="${key}" aria-expanded="${state.calendarPickerOpen === key}"><span>${label}</span><i aria-hidden="true"></i></button>${state.calendarPickerOpen === key ? `<div class="calendar-picker-menu">${menu}</div>` : ''}</div>`;
+}
+function renderCalendarPicker() {
+  if (!state.calendarOpen) return '';
+  const now = new Date();
+  const first = firstFocusDate();
+  const yearOptions = Array.from({ length: now.getFullYear() - first.getFullYear() + 1 }, (_, index) => {
+    const year = first.getFullYear() + index;
+    return `<button type="button" data-calendar-choice="year" data-calendar-value="${year}" ${hasFocusInYear(year) ? '' : 'disabled'}>${year}年</button>`;
+  }).join('');
+  const monthOptions = Array.from({ length: 12 }, (_, month) => `<button type="button" data-calendar-choice="month" data-calendar-value="${month}" ${hasFocusInMonth(state.calendarYear, month) ? '' : 'disabled'}>${month + 1}月</button>`).join('');
+  const firstWeekday = (new Date(state.calendarYear, state.calendarMonth, 1).getDay() + 6) % 7;
+  const days = new Date(state.calendarYear, state.calendarMonth + 1, 0).getDate();
+  const dayCells = Array.from({ length: firstWeekday + days }, (_, index) => {
+    if (index < firstWeekday) return '<span class="calendar-day is-blank"></span>';
+    const day = index - firstWeekday + 1;
+    const active = hasFocusOnDay(state.calendarYear, state.calendarMonth, day);
+    const selected = state.statsDay.getFullYear() === state.calendarYear && state.statsDay.getMonth() === state.calendarMonth && state.statsDay.getDate() === day;
+    return `<button class="calendar-day ${active ? 'has-record' : ''} ${selected ? 'is-selected' : ''}" type="button" data-calendar-day="${day}" ${active ? '' : 'disabled'}>${day}</button>`;
+  }).join('');
+  return `<section class="stats-calendar" aria-label="选择专注日期"><header><div><p>选择日期</p><strong>有记录的日期可以查看</strong></div><button class="close-button" id="closeCalendar" type="button" aria-label="关闭日历">x</button></header><div class="calendar-selectors">${calendarPickerButton(`${state.calendarYear}年`, 'year', yearOptions)}${calendarPickerButton(`${state.calendarMonth + 1}月`, 'month', monthOptions)}</div><div class="calendar-weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div><div class="calendar-grid">${dayCells}</div></section>`;
+}
+function statsPicker(period) {
+  const now = new Date();
+  const first = firstFocusDate();
+  if (period === 'day') {
+    return `<div class="stats-picker"><button class="stats-picker-trigger" id="openCalendar" type="button"><span>${state.statsDay.getFullYear()}年${state.statsDay.getMonth() + 1}月${state.statsDay.getDate()}日</span><i aria-hidden="true"></i></button></div>`;
+  }
+  if (period === 'month') {
+    const yearOptions = Array.from({ length: now.getFullYear() - first.getFullYear() + 1 }, (_, index) => {
+      const year = first.getFullYear() + index;
+      const active = hasFocusInYear(year);
+      return `<button type="button" data-picker-choice="month-year" data-picker-value="${year}" ${active ? '' : 'disabled'}>${year}年</button>`;
+    }).join('');
+    const monthOptions = Array.from({ length: 12 }, (_, month) => {
+      const inRange = (state.statsMonth.getFullYear() > first.getFullYear() || month >= first.getMonth()) && (state.statsMonth.getFullYear() < now.getFullYear() || month <= now.getMonth());
+      const active = inRange && hasFocusInMonth(state.statsMonth.getFullYear(), month);
+      return `<button type="button" data-picker-choice="month-month" data-picker-value="${month}" ${active ? '' : 'disabled'}>${month + 1}月</button>`;
+    }).join('');
+    return `<div class="stats-picker stats-month-picker">${pickerButton(`${state.statsMonth.getFullYear()}年`, 'month-year', yearOptions)}${pickerButton(`${state.statsMonth.getMonth() + 1}月`, 'month-month', monthOptions)}</div>`;
+  }
+  const options = Array.from({ length: now.getFullYear() - first.getFullYear() + 1 }, (_, index) => {
+    const year = first.getFullYear() + index;
+    const active = hasFocusInYear(year);
+    return `<button type="button" data-picker-choice="year" data-picker-value="${year}" ${active ? '' : 'disabled'}>${year}年</button>`;
+  }).join('');
+  return `<div class="stats-picker">${pickerButton(`${state.statsYear}年`, 'year', options)}</div>`;
+}
+function statsSelectionLabel(index, series) {
+  if (state.statsPeriod === 'week') {
+    return '当日累计专注';
+  }
+  if (state.statsPeriod === 'month') {
+    const month = new Date(state.statsMonth);
+    return `${month.getMonth() + 1}月${index + 1}日累计专注`;
+  }
+  return `${index + 1}月累计专注`;
+}
+function selectStatsChartIndex(index) {
+  const series = statsSeries(state.statsPeriod);
+  const selectedIndex = Math.min(Math.max(index, 0), series.values.length - 1);
+  if (state.statsPeriod === 'week') state.statsSelectedDay = selectedIndex;
+  if (state.statsPeriod === 'month') state.statsSelectedMonthDay = selectedIndex;
+  if (state.statsPeriod === 'year') state.statsSelectedYearMonth = selectedIndex;
+  document.querySelector('#statsSelectedLabel')?.replaceChildren(statsSelectionLabel(selectedIndex, series));
+  document.querySelector('#statsSelectedDuration')?.replaceChildren(formatMinutes(series.values[selectedIndex] || 0));
+  document.querySelectorAll('[data-chart-index]').forEach(point => point.classList.toggle('is-selected', Number(point.dataset.chartIndex) === selectedIndex));
+  const position = 44 + selectedIndex * 260 / Math.max(series.values.length - 1, 1);
+  document.querySelector('.stats-scrubber-line')?.setAttribute('x1', position);
+  document.querySelector('.stats-scrubber-line')?.setAttribute('x2', position);
+}
 function statsSeries(period) {
   const now = new Date();
   if (period === 'day') {
+    const day = new Date(state.statsDay);
     const values = Array.from({ length: 6 }, (_, index) => {
       const startHour = index * 4;
-      return totalSeconds(recordsForDay(now).filter(record => new Date(record.completedAt).getHours() >= startHour && new Date(record.completedAt).getHours() < startHour + 4));
+      return totalSeconds(recordsForDay(day).filter(record => new Date(record.completedAt).getHours() >= startHour && new Date(record.completedAt).getHours() < startHour + 4));
     });
     return { labels: ['0 点', '12 点', '24 点'], values, title: '今天的专注时段', total: values.reduce((sum, value) => sum + value, 0) };
   }
   if (period === 'month') {
     const month = new Date(state.statsMonth);
+    const isCurrentMonth = month.getFullYear() === now.getFullYear() && month.getMonth() === now.getMonth();
     const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+    const observedDays = isCurrentMonth ? now.getDate() : days;
     const values = Array.from({ length: days }, (_, index) => totalSeconds(recordsForDay(new Date(month.getFullYear(), month.getMonth(), index + 1))));
-    return { labels: ['1 日', `${Math.ceil(days / 2)} 日`, `${days} 日`], values, title: `${month.getFullYear()} 年 ${monthLabel(month)}`, total: values.reduce((sum, value) => sum + value, 0) };
+    const total = values.reduce((sum, value) => sum + value, 0);
+    return { labels: ['1 日', `${Math.ceil(days / 2)} 日`, `${days} 日`], values, title: `${month.getFullYear()} 年 ${monthLabel(month)}`, total, average: total / observedDays, averageLabel: '日均专注' };
   }
   if (period === 'year') {
     const year = state.statsYear;
-    const values = Array.from({ length: 12 }, (_, index) => totalSeconds(state.focusRecords.filter(record => { const d = new Date(record.completedAt); return d.getFullYear() === year && d.getMonth() === index; })));
-    return { labels: ['1 月', '6 月', '12 月'], values, title: `${year} 年`, total: values.reduce((sum, value) => sum + value, 0) };
+    const months = 12;
+    const observedMonths = year === now.getFullYear() ? now.getMonth() + 1 : months;
+    const values = Array.from({ length: months }, (_, index) => totalSeconds(state.focusRecords.filter(record => { const d = new Date(record.completedAt); return d.getFullYear() === year && d.getMonth() === index; })));
+    const total = values.reduce((sum, value) => sum + value, 0);
+    return { labels: ['1 月', `${Math.ceil(months / 2)} 月`, `${months} 月`], values, title: `${year} 年`, total, average: total / observedMonths, averageLabel: '月均专注' };
   }
   const days = Array.from({ length: 7 }, (_, index) => { const date = new Date(now); date.setDate(now.getDate() - 6 + index); return date; });
   const values = days.map(date => totalSeconds(recordsForDay(date)));
-  return { labels: [days[0].toLocaleDateString('zh-CN', { weekday: 'short' }), days[3].toLocaleDateString('zh-CN', { weekday: 'short' }), '今天'], values, title: '最近 7 天', total: values.reduce((sum, value) => sum + value, 0) };
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return { labels: [days[0].toLocaleDateString('zh-CN', { weekday: 'short' }), days[3].toLocaleDateString('zh-CN', { weekday: 'short' }), '今天'], values, days, title: `${days[0].getMonth() + 1}月${days[0].getDate()}日-${now.getMonth() + 1}月${now.getDate()}日`, total, average: total / 7, averageLabel: '每日平均专注' };
 }
 function renderStatsDrawer() {
-  const periods = [['day', '今日'], ['week', '最近7天'], ['month', '月度'], ['year', '年度']];
+  const periods = [['day', '日'], ['week', '最近7天'], ['month', '月'], ['year', '年']];
   const now = new Date();
   const series = statsSeries(state.statsPeriod);
-  const records = state.statsPeriod === 'day' ? recordsForDay(now) : state.focusRecords.slice(0, 3);
-  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const oldestMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const records = state.statsPeriod === 'day' ? recordsForDay(state.statsDay) : state.focusRecords.slice(0, 3);
   const selectedMonth = new Date(state.statsMonth);
-  const monthSwitcher = state.statsPeriod === 'month' ? `<div class="stats-year-switcher"><button type="button" data-stats-month="-1" aria-label="查看上一个月" ${selectedMonth <= oldestMonth ? 'disabled' : ''}>‹</button><strong>${selectedMonth.getFullYear()} 年 ${monthLabel(selectedMonth)}</strong><button type="button" data-stats-month="1" aria-label="查看下一个月" ${selectedMonth >= currentMonth ? 'disabled' : ''}>›</button></div>` : '';
-  const yearSwitcher = state.statsPeriod === 'year' ? `<div class="stats-year-switcher"><button type="button" data-stats-year="-1" aria-label="查看上一年" ${state.statsYear <= now.getFullYear() - 1 ? 'disabled' : ''}>‹</button><strong>${state.statsYear} 年</strong><button type="button" data-stats-year="1" aria-label="查看下一年" ${state.statsYear >= now.getFullYear() ? 'disabled' : ''}>›</button></div>` : '';
+  const picker = state.statsPeriod === 'day' || state.statsPeriod === 'month' || state.statsPeriod === 'year' ? statsPicker(state.statsPeriod) : '';
+  const chartMax = chartScale(series.values);
+  const points = chartPoints(series.values, chartMax);
+  const selectedIndex = state.statsPeriod === 'week'
+    ? (state.statsSelectedDay == null ? null : Math.min(Math.max(state.statsSelectedDay, 0), series.values.length - 1))
+    : state.statsPeriod === 'month'
+      ? Math.min(Math.max(state.statsSelectedMonthDay, 0), series.values.length - 1)
+      : Math.min(Math.max(state.statsSelectedYearMonth, 0), series.values.length - 1);
   const chart = state.statsPeriod === 'week'
-    ? chartBars(series.values)
-    : `<polyline class="stats-line" points="${chartPoints(series.values)}"></polyline>${chartPoints(series.values).split(' ').map(point => `<circle class="stats-point" cx="${point.split(',')[0]}" cy="${point.split(',')[1]}" r="3"></circle>`).join('')}`;
-  const chartSection = state.statsPeriod === 'day' ? '' : `<section class="stats-chart"><div class="stats-chart-head"><span>${series.title}</span><strong>${formatMinutes(series.total)}</strong></div><svg viewBox="0 0 280 112" role="img" aria-label="${series.title}专注时长${state.statsPeriod === 'week' ? '柱状图' : '曲线'}"><path class="stats-grid" d="M16 24H264M16 60H264M16 96H264"></path>${chart}</svg><div class="stats-axis"><span>${series.labels[0]}</span><span>${series.labels[1]}</span><span>${series.labels[2]}</span></div></section>`;
-  const recordTitle = state.statsPeriod === 'day' ? '今日专注记录' : '最近完成';
+    ? chartBars(series.values, chartMax, selectedIndex)
+    : `<polyline class="stats-line" points="${points.map(item => item.point).join(' ')}"></polyline>${points.map(item => `<circle class="stats-point ${item.index === selectedIndex ? 'is-selected' : ''}" data-chart-index="${item.index}" cx="${item.point.split(',')[0]}" cy="${item.point.split(',')[1]}" r="3"><title>${formatMinutes(item.value)}</title></circle>`).join('')}`;
+  const chartOverview = `<div class="stats-chart-head">${state.statsPeriod === 'week' ? `<span>${series.title}</span>` : ''}<strong>${formatMinutes(series.average)}</strong><small>${series.averageLabel}</small></div>`;
+  const selectedLabel = selectedIndex == null ? '' : statsSelectionLabel(selectedIndex, series);
+  const totalLabel = state.statsPeriod === 'week'
+    ? '近7天累计专注'
+    : state.statsPeriod === 'month'
+      ? '月度累计专注'
+      : '年度累计专注';
+  const selectedDetail = state.statsPeriod === 'week' && selectedIndex == null ? '' : `<div><span id="statsSelectedLabel">${selectedLabel}</span><strong id="statsSelectedDuration">${formatMinutes(series.values[selectedIndex] || 0)}</strong></div>`;
+  const periodDetails = state.statsPeriod === 'day' ? '' : `<div class="stats-period-details"><div><span>${totalLabel}</span><strong>${formatMinutes(series.total)}</strong></div>${selectedDetail}</div>`;
+  const scrubber = state.statsPeriod === 'month' || state.statsPeriod === 'year'
+    ? `<input class="stats-scrubber" id="statsScrubber" type="range" min="0" max="${series.values.length - 1}" value="${selectedIndex}" aria-label="选择${state.statsPeriod === 'month' ? '日期' : '月份'}">`
+    : '';
+  const scrubberLine = scrubber ? `<line class="stats-scrubber-line" x1="${44 + selectedIndex * 260 / Math.max(series.values.length - 1, 1)}" y1="24" x2="${44 + selectedIndex * 260 / Math.max(series.values.length - 1, 1)}" y2="96"></line>` : '';
+  const selectionHint = state.statsPeriod === 'week' && selectedIndex == null ? '<p class="stats-selection-hint">点选柱状图可查看当日数据</p>' : '';
+  const plot = `<div class="stats-plot"><svg viewBox="0 0 320 112" role="img" aria-label="${series.title}专注时长${state.statsPeriod === 'week' ? '柱状图' : '曲线'}">${chartMax ? chartYAxis(chartMax) : emptyChartYAxis()}${scrubberLine}${chart}</svg>${scrubber}</div><div class="stats-axis"><span>${series.labels[0]}</span><span>${series.labels[1]}</span><span>${series.labels[2]}</span></div>`;
+  const chartSection = state.statsPeriod === 'day' ? '' : `<section class="stats-chart ${chartMax ? '' : 'stats-chart-empty'}">${chartOverview}${plot}${selectionHint}${periodDetails}${chartMax ? '' : '<p>还没有可统计的专注时长。</p>'}</section>`;
+  const recordTitle = state.statsPeriod === 'day' ? '当日专注记录' : '最近完成';
+  const todaySummary = state.statsPeriod === 'day' ? `<div class="stats-summary stats-day-summary"><div><span>当日总专注</span><strong>${formatMinutes(totalSeconds(records))}</strong></div></div>` : '';
   const recordTime = record => state.statsPeriod === 'day'
     ? new Date(record.completedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
     : new Date(record.completedAt).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
-  return `<aside class="stats-drawer ${state.statsOpen ? 'open' : ''}" id="statsDrawer" aria-hidden="${state.statsOpen ? 'false' : 'true'}"><section class="stats-sheet" aria-labelledby="statsTitle"><header class="stats-head"><div><p>专注统计</p><h1 id="statsTitle">和猫一起慢慢积累</h1></div><button class="close-button" id="closeStats" type="button" aria-label="关闭统计">x</button></header><div class="stats-tabs" role="tablist">${periods.map(([value, label]) => `<button class="${state.statsPeriod === value ? 'is-active' : ''}" type="button" data-stats-period="${value}" role="tab" aria-selected="${state.statsPeriod === value}">${label}</button>`).join('')}</div>${monthSwitcher}${yearSwitcher}${chartSection}<section class="stats-records"><div class="stats-records-head"><span>${recordTitle}</span></div>${records.length ? records.map(record => `<article><div><strong>${escapeHtml(record.purpose || '专注')}</strong><span>${recordTime(record)} 完成</span></div><b>${formatMinutes(record.duration)}</b></article>`).join('') : '<p class="stats-empty">完成一次专注后，这里会记录这段时间。</p>'}</section></section></aside>`;
+  const recordsSection = state.statsPeriod === 'day' ? `<section class="stats-records"><div class="stats-records-head"><span>${recordTitle}</span></div>${records.length ? records.map(record => `<article><div><strong>${escapeHtml(record.purpose || '专注')}</strong><span>${recordTime(record)} 完成</span></div><b>${formatMinutes(record.duration)}</b></article>`).join('') : '<p class="stats-empty">完成一次专注后，这里会记录这段时间。</p>'}</section>` : '';
+  return `<aside class="stats-drawer ${state.statsOpen ? 'open' : ''}" id="statsDrawer" aria-hidden="${state.statsOpen ? 'false' : 'true'}"><section class="stats-sheet" aria-labelledby="statsTitle"><header class="stats-head"><div><p>专注统计</p><h1 id="statsTitle">和猫一起慢慢积累</h1></div><button class="close-button" id="closeStats" type="button" aria-label="关闭统计">x</button></header><div class="stats-tabs" role="tablist">${periods.map(([value, label]) => `<button class="${state.statsPeriod === value ? 'is-active' : ''}" type="button" data-stats-period="${value}" role="tab" aria-selected="${state.statsPeriod === value}">${label}</button>`).join('')}</div>${picker}${todaySummary}${chartSection}${recordsSection}${renderCalendarPicker()}</section></aside>`;
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, focusRecords: state.focusRecords, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume })); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
@@ -208,13 +357,74 @@ function render() {
   document.querySelector('#closeStats')?.addEventListener('click', closeStats);
   document.querySelector('#statsDrawer')?.addEventListener('click', event => { if (event.target === event.currentTarget) closeStats(); });
   document.querySelectorAll('[data-stats-period]').forEach(button => button.addEventListener('click', () => { state.statsPeriod = button.dataset.statsPeriod; render(); openStats(); }));
-  document.querySelectorAll('[data-stats-year]').forEach(button => button.addEventListener('click', () => { state.statsYear += Number(button.dataset.statsYear); render(); openStats(); }));
-  document.querySelectorAll('[data-stats-month]').forEach(button => button.addEventListener('click', () => {
-    const month = new Date(state.statsMonth);
-    state.statsMonth = new Date(month.getFullYear(), month.getMonth() + Number(button.dataset.statsMonth), 1);
+  document.querySelectorAll('[data-picker-toggle]').forEach(button => button.addEventListener('click', () => {
+    state.statsPickerOpen = state.statsPickerOpen === button.dataset.pickerToggle ? null : button.dataset.pickerToggle;
     render();
     openStats();
   }));
+  document.querySelectorAll('[data-picker-choice]').forEach(button => button.addEventListener('click', () => {
+    const choice = button.dataset.pickerChoice;
+    const value = Number(button.dataset.pickerValue);
+    if (choice === 'month-year') {
+      const year = value;
+      const month = hasFocusInMonth(year, state.statsMonth.getMonth())
+        ? state.statsMonth.getMonth()
+        : Array.from({ length: 12 }, (_, index) => index).find(index => hasFocusInMonth(year, index));
+      state.statsMonth = new Date(year, month, 1);
+    }
+    if (choice === 'month-month') state.statsMonth = new Date(state.statsMonth.getFullYear(), value, 1);
+    if (choice === 'year') state.statsYear = value;
+    state.statsPickerOpen = null;
+    state.statsSelectedMonthDay = 0;
+    state.statsSelectedYearMonth = 0;
+    render();
+    openStats();
+  }));
+  document.querySelector('#openCalendar')?.addEventListener('click', () => {
+    state.calendarYear = state.statsDay.getFullYear();
+    state.calendarMonth = state.statsDay.getMonth();
+    state.calendarOpen = true;
+    state.calendarPickerOpen = null;
+    render();
+    openStats();
+  });
+  document.querySelector('#closeCalendar')?.addEventListener('click', () => {
+    state.calendarOpen = false;
+    state.calendarPickerOpen = null;
+    render();
+    openStats();
+  });
+  document.querySelectorAll('[data-calendar-toggle]').forEach(button => button.addEventListener('click', () => {
+    state.calendarPickerOpen = state.calendarPickerOpen === button.dataset.calendarToggle ? null : button.dataset.calendarToggle;
+    render();
+    openStats();
+  }));
+  document.querySelectorAll('[data-calendar-choice]').forEach(button => button.addEventListener('click', () => {
+    const choice = button.dataset.calendarChoice;
+    const value = Number(button.dataset.calendarValue);
+    if (choice === 'year') {
+      state.calendarYear = value;
+      state.calendarMonth = hasFocusInMonth(value, state.calendarMonth) ? state.calendarMonth : Array.from({ length: 12 }, (_, index) => index).find(index => hasFocusInMonth(value, index));
+    }
+    if (choice === 'month') state.calendarMonth = value;
+    state.calendarPickerOpen = null;
+    render();
+    openStats();
+  }));
+  document.querySelectorAll('[data-calendar-day]').forEach(button => button.addEventListener('click', () => {
+    state.statsDay = new Date(state.calendarYear, state.calendarMonth, Number(button.dataset.calendarDay));
+    state.calendarOpen = false;
+    render();
+    openStats();
+  }));
+  document.querySelectorAll('[data-chart-index]').forEach(point => point.addEventListener('click', () => {
+    const index = Number(point.dataset.chartIndex);
+    if (state.statsPeriod === 'week' && state.statsSelectedDay === index) state.statsSelectedDay = null;
+    else selectStatsChartIndex(index);
+    render();
+    openStats();
+  }));
+  document.querySelector('#statsScrubber')?.addEventListener('input', event => selectStatsChartIndex(Number(event.target.value)));
   document.querySelector('#musicVolume')?.addEventListener('input', event => { state.musicVolume = Number(event.target.value); document.querySelector('#musicVolumeValue').textContent = `${state.musicVolume}%`; save(); });
   document.querySelector('#catVolume')?.addEventListener('input', event => { state.catVolume = Number(event.target.value); catWakeSound.volume = state.catVolume / 100; document.querySelector('#catVolumeValue').textContent = `${state.catVolume}%`; save(); });
   document.querySelector('#finishFocus')?.addEventListener('input', updateFinishSlider);

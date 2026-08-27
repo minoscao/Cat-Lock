@@ -565,6 +565,7 @@
 }
 
 .stats-sheet {
+  position: relative;
   width: min(430px, 100%);
   max-height: min(680px, calc(100dvh - 46px));
   overflow: auto;
@@ -658,41 +659,247 @@
   color: #456644;
 }
 
-.stats-year-switcher {
-  display: flex;
-  align-items: center;
+.stats-picker {
+  display: grid;
   justify-content: center;
-  gap: 14px;
-  margin: -3px 0 10px;
-  color: #597052;
+  margin: 2px 0 12px;
 }
 
-.stats-year-switcher strong {
-  min-width: 78px;
+.stats-month-picker {
+  grid-template-columns: auto auto;
+  gap: 10px;
+}
+
+.stats-day-picker {
+  grid-template-columns: auto auto auto;
+  gap: 7px;
+}
+
+.stats-picker-field {
+  position: relative;
+}
+
+.stats-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-width: 92px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 1px dashed rgba(83, 113, 71, .28);
+  background: transparent;
+  color: #52734e;
+  cursor: pointer;
+  font: 400 16px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
   text-align: center;
+}
+
+.stats-picker-trigger i {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .16s ease;
+}
+
+.stats-picker-trigger[aria-expanded="true"] i {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.stats-picker-trigger:focus-visible {
+  outline: none;
+  border-bottom-color: rgba(83, 113, 71, .52);
+}
+
+.stats-picker-menu {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 6px);
+  left: 50%;
+  display: grid;
+  min-width: 108px;
+  max-height: 182px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid rgba(100, 86, 58, .13);
+  border-radius: 6px;
+  background: rgba(255, 252, 244, .96);
+  box-shadow: 0 9px 22px rgba(67, 49, 31, .14);
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+}
+
+.stats-picker-menu button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #587650;
+  cursor: pointer;
+  font: 400 14px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+  white-space: nowrap;
+}
+
+.stats-picker-menu button:hover:not(:disabled) {
+  background: rgba(106, 139, 94, .11);
+}
+
+.stats-picker-menu button:disabled {
+  color: #b5b5aa;
+  cursor: default;
+}
+
+.stats-calendar {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 22px 20px;
+  border-radius: 8px;
+  background: rgba(255, 252, 244, .98);
+  box-shadow: 0 0 0 1px rgba(100, 86, 58, .1);
+}
+
+.stats-calendar header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.stats-calendar header p,
+.stats-calendar header strong {
+  margin: 0;
+}
+
+.stats-calendar header p {
+  color: #7f7764;
+  font-size: 12px;
+}
+
+.stats-calendar header strong {
+  display: block;
+  margin-top: 4px;
+  color: #456644;
+  font: 400 22px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+}
+
+.calendar-selectors {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  gap: 10px;
+}
+
+.calendar-picker-field {
+  position: relative;
+}
+
+.calendar-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-width: 94px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 1px dashed rgba(83, 113, 71, .28);
+  background: transparent;
+  color: #52734e;
+  cursor: pointer;
   font: 400 16px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
 }
 
-.stats-year-switcher button {
-  width: 28px;
-  height: 28px;
+.calendar-picker-trigger i {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.calendar-picker-menu {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 6px);
+  left: 50%;
+  display: grid;
+  min-width: 106px;
+  max-height: 164px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid rgba(100, 86, 58, .13);
+  border-radius: 6px;
+  background: #fffdf7;
+  box-shadow: 0 9px 22px rgba(67, 49, 31, .14);
+  transform: translateX(-50%);
+}
+
+.calendar-picker-menu button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #587650;
+  cursor: pointer;
+  font: 400 14px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+}
+
+.calendar-picker-menu button:disabled {
+  color: #b5b5aa;
+  cursor: default;
+}
+
+.calendar-weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px 4px;
+  text-align: center;
+}
+
+.calendar-weekdays {
+  color: #8a8c7b;
+  font-size: 12px;
+}
+
+.calendar-day {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  justify-self: center;
   border: 0;
   border-radius: 50%;
-  background: rgba(101, 132, 93, .12);
-  color: #52734e;
-  font-size: 22px;
-  line-height: 1;
+  background: transparent;
+  color: #aaa99c;
+  cursor: default;
+  font: 400 15px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+}
+
+.calendar-day.has-record {
+  border: 1px solid rgba(83, 113, 71, .45);
+  background: rgba(220, 235, 214, .68);
+  color: #456644;
   cursor: pointer;
 }
 
-.stats-year-switcher button:disabled {
-  opacity: .35;
-  cursor: default;
+.calendar-day.is-selected {
+  border-color: #52734e;
+  background: #52734e;
+  color: #fffdf7;
 }
 
 .stats-bar {
   fill: #71915f;
   opacity: .9;
+  cursor: pointer;
 }
 
 .stats-chart {
@@ -702,9 +909,50 @@
 }
 
 .stats-chart-head {
-  padding: 0 3px 5px;
+  display: grid;
+  justify-content: start;
+  gap: 4px;
+  padding: 0 3px 12px;
   color: #61735c;
   font-size: 13px;
+}
+
+.stats-chart-head strong {
+  color: #456644;
+  font: 400 34px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+}
+
+.stats-chart-head small {
+  color: #8a8c7b;
+  font-size: 12px;
+}
+
+.stats-average {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 2px 3px 8px;
+  color: #7f7764;
+  font-size: 12px;
+}
+
+.stats-average strong {
+  color: #587650;
+  font: 400 17px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+}
+
+.stats-chart-empty {
+  display: grid;
+  gap: 8px;
+  min-height: 112px;
+  color: #61735c;
+  font-size: 13px;
+}
+
+.stats-chart-empty p {
+  margin: 14px 0 0;
+  color: #8a8c7b;
+  font-size: 12px;
 }
 
 .stats-chart svg {
@@ -720,6 +968,11 @@
   stroke-dasharray: 3 5;
 }
 
+.stats-y-label {
+  fill: #899182;
+  font: 11px "Microsoft YaHei", sans-serif;
+}
+
 .stats-line {
   fill: none;
   stroke: #719364;
@@ -732,12 +985,18 @@
   fill: #f7e2a4;
   stroke: #719364;
   stroke-width: 2;
+  cursor: pointer;
+}
+
+.stats-point.is-selected {
+  fill: #406a43;
+  stroke: #406a43;
 }
 
 .stats-axis {
   display: flex;
   justify-content: space-between;
-  padding: 0 7px;
+  padding: 0 5% 0 13.75%;
   color: #9a907b;
   font-size: 11px;
 }
@@ -778,6 +1037,79 @@
   font-size: 12px;
   line-height: 1.6;
   text-align: center;
+}
+
+.stats-bar.is-selected {
+  fill: #406a43;
+  filter: drop-shadow(0 2px 3px rgba(64, 106, 67, .28));
+}
+
+.stats-period-details {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px dashed rgba(83, 113, 71, .23);
+}
+
+.stats-period-details div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.stats-period-details span {
+  color: #7f7764;
+  font-size: 12px;
+}
+
+.stats-period-details strong {
+  color: #587650;
+  font: 400 18px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+}
+
+.stats-selection-hint {
+  margin: 9px 0 -1px;
+  color: #899182;
+  font-size: 11px;
+  text-align: center;
+}
+
+.stats-plot {
+  position: relative;
+}
+
+.stats-scrubber {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 5%;
+  left: 13.75%;
+  width: 81.25%;
+  height: 124px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: ew-resize;
+}
+
+.stats-scrubber::-webkit-slider-runnable-track {
+  height: 124px;
+  background: transparent;
+}
+
+.stats-scrubber::-webkit-slider-thumb {
+  width: 20px;
+  height: 124px;
+  margin-top: 0;
+  appearance: none;
+  border: 0;
+  background: transparent;
+}
+
+.stats-scrubber-line {
+  stroke: rgba(64, 106, 67, .38);
+  stroke-width: 1;
 }
 
 @media (max-width: 720px) and (orientation: portrait) {
