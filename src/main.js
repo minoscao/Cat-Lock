@@ -6,6 +6,7 @@ const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
 const state = {
   fish: 0,
   pawDays: {},
+  focusRecords: [],
   active: false,
   duration: DEFAULT_FOCUS_SECONDS,
   remaining: DEFAULT_FOCUS_SECONDS,
@@ -16,6 +17,9 @@ const state = {
   editingDuration: false,
   editingPurpose: false,
   settingsOpen: false,
+  statsOpen: false,
+  statsPeriod: 'week',
+  statsYear: new Date().getFullYear(),
   view: 'rug',
   note: '它已经在地毯上等你了。',
   ...saved
@@ -96,7 +100,47 @@ function releaseFocusLock() {
 function todayKey() { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); }
 function todayPaws() { return state.pawDays[todayKey()] || 0; }
 function formatTime(seconds) { return `${String(Math.floor(Math.max(0, seconds) / 60)).padStart(2, '0')}:${String(Math.max(0, seconds) % 60).padStart(2, '0')}`; }
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, pawDays: state.pawDays, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume })); }
+function formatMinutes(seconds) { const minutes = Math.round(seconds / 60); return `${minutes} 分钟`; }
+function dayKey(date) { const d = date || new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); }
+function recordsForDay(date) { const key = dayKey(date); return state.focusRecords.filter(record => dayKey(new Date(record.completedAt)) === key); }
+function totalSeconds(records) { return records.reduce((sum, record) => sum + record.duration, 0); }
+function chartPoints(values) { const max = Math.max(...values, 1); return values.map((value, index) => `${16 + index * 248 / Math.max(values.length - 1, 1)},${96 - value / max * 72}`).join(' '); }
+function monthLabel(date) { return `${date.getMonth() + 1} 月`; }
+function statsSeries(period) {
+  const now = new Date();
+  if (period === 'day') {
+    const values = Array.from({ length: 6 }, (_, index) => {
+      const startHour = index * 4;
+      return totalSeconds(recordsForDay(now).filter(record => new Date(record.completedAt).getHours() >= startHour && new Date(record.completedAt).getHours() < startHour + 4));
+    });
+    return { labels: ['0 点', '12 点', '24 点'], values, title: '今天的专注时段', total: values.reduce((sum, value) => sum + value, 0) };
+  }
+  if (period === 'month') {
+    const months = Array.from({ length: 12 }, (_, index) => new Date(now.getFullYear(), now.getMonth() - 11 + index, 1));
+    const values = months.map(month => totalSeconds(state.focusRecords.filter(record => {
+      const date = new Date(record.completedAt);
+      return date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth();
+    })));
+    return { labels: [monthLabel(months[0]), monthLabel(months[5]), monthLabel(months[11])], values, title: '近 12 个月', total: values.reduce((sum, value) => sum + value, 0) };
+  }
+  if (period === 'year') {
+    const year = state.statsYear;
+    const values = Array.from({ length: 12 }, (_, index) => totalSeconds(state.focusRecords.filter(record => { const d = new Date(record.completedAt); return d.getFullYear() === year && d.getMonth() === index; })));
+    return { labels: ['1 月', '6 月', '12 月'], values, title: `${year} 年`, total: values.reduce((sum, value) => sum + value, 0) };
+  }
+  const days = Array.from({ length: 7 }, (_, index) => { const date = new Date(now); date.setDate(now.getDate() - 6 + index); return date; });
+  const values = days.map(date => totalSeconds(recordsForDay(date)));
+  return { labels: [days[0].toLocaleDateString('zh-CN', { weekday: 'short' }), days[3].toLocaleDateString('zh-CN', { weekday: 'short' }), '今天'], values, title: '最近 7 天', total: values.reduce((sum, value) => sum + value, 0) };
+}
+function renderStatsDrawer() {
+  const periods = [['day', '每天'], ['week', '7天'], ['month', '每月'], ['year', '每年']];
+  const series = statsSeries(state.statsPeriod);
+  const todaySeconds = totalSeconds(recordsForDay(new Date()));
+  const recent = state.focusRecords.slice(0, 3);
+  const yearSwitcher = state.statsPeriod === 'year' ? `<div class="stats-year-switcher"><button type="button" data-stats-year="-1" aria-label="查看上一年">‹</button><strong>${state.statsYear} 年</strong><button type="button" data-stats-year="1" aria-label="查看下一年" ${state.statsYear >= new Date().getFullYear() ? 'disabled' : ''}>›</button></div>` : '';
+  return `<aside class="stats-drawer ${state.statsOpen ? 'open' : ''}" id="statsDrawer" aria-hidden="${state.statsOpen ? 'false' : 'true'}"><section class="stats-sheet" aria-labelledby="statsTitle"><header class="stats-head"><div><p>专注统计</p><h1 id="statsTitle">和猫一起慢慢积累</h1></div><button class="close-button" id="closeStats" type="button" aria-label="关闭统计">x</button></header><div class="stats-summary"><div><span>今日专注</span><strong>${formatMinutes(todaySeconds)}</strong></div><div><span>完成次数</span><strong>${recordsForDay(new Date()).length} 次</strong></div></div><div class="stats-tabs" role="tablist">${periods.map(([value, label]) => `<button class="${state.statsPeriod === value ? 'is-active' : ''}" type="button" data-stats-period="${value}" role="tab" aria-selected="${state.statsPeriod === value}">${label}</button>`).join('')}</div>${yearSwitcher}<section class="stats-chart"><div class="stats-chart-head"><span>${series.title}</span><strong>${formatMinutes(series.total)}</strong></div><svg viewBox="0 0 280 112" role="img" aria-label="${series.title}专注时长曲线"><path class="stats-grid" d="M16 24H264M16 60H264M16 96H264"></path><polyline class="stats-line" points="${chartPoints(series.values)}"></polyline>${chartPoints(series.values).split(' ').map(point => `<circle class="stats-point" cx="${point.split(',')[0]}" cy="${point.split(',')[1]}" r="3"></circle>`).join('')}</svg><div class="stats-axis"><span>${series.labels[0]}</span><span>${series.labels[1]}</span><span>${series.labels[2]}</span></div></section><section class="stats-records"><div class="stats-records-head"><span>最近完成</span><small>${state.focusRecords.length} 次累计</small></div>${recent.length ? recent.map(record => `<article><div><strong>${escapeHtml(record.purpose || '专注')}</strong><span>${new Date(record.completedAt).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}</span></div><b>${formatMinutes(record.duration)}</b></article>`).join('') : '<p class="stats-empty">完成一次专注后，这里会留下你的第一枚爪印。</p>'}</section></section></aside>`;
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, pawDays: state.pawDays, focusRecords: state.focusRecords, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume })); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
 
 function render() {
@@ -111,10 +155,12 @@ function render() {
     <div class="room-art" aria-hidden="true"></div><div class="focus-art" aria-hidden="true"></div><div class="sun-wash" aria-hidden="true"></div>
     ${showEntryCat ? '<div class="cat-video-layer" aria-hidden="true"><video class="cat-animation is-active" muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-animation" muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video></div>' : ''}
     <header class="topbar"><button class="top-icon-button shop-top-button" id="openCollection" type="button" aria-label="打开商城，拥有 ${state.fish} 条小鱼干"><img src="/icons/shopping-bag.svg" alt=""><span class="fish-count"><img src="/icons/fish-simple.svg" alt="">x <b>${state.fish}</b></span></button><button class="top-icon-button settings-top-button" id="openSettings" type="button" aria-label="打开系统设置"><img src="/icons/settings.svg" alt=""></button></header>
+    ${!state.active && state.view === 'rug' ? '<button class="stats-button" id="openStats" type="button" aria-label="查看专注统计" title="专注统计"><img src="/icons/paw-chart.svg" alt=""></button>' : ''}
     <section class="focus-panel" aria-live="polite">${focusControl}<p class="room-note">${state.note}</p></section>
     ${state.active ? '<div class="finish-slider" id="finishSlider"><div class="finish-track"><span class="finish-track-copy">右滑放弃</span><span class="finish-track-chevron" aria-hidden="true">››</span><input id="finishFocus" type="range" min="0" max="100" value="0" aria-label="向右滑动铃铛提前结束专注"></div></div>' : ''}
     <aside class="collection-drawer" id="collectionDrawer" aria-hidden="true"><div class="drawer-sheet"><div class="drawer-head"><div><p>我的收藏</p><h1>慢慢把房间填满</h1></div><button class="close-button" id="closeCollection" type="button" aria-label="关闭收藏">x</button></div><section class="owned-section"><span class="section-label">已经拥有</span><div class="owned-items"><span>虎斑白猫</span><span>圆地毯</span></div></section><section class="shop-section"><div class="section-title"><span>互动家具</span><small>售价待定</small></div><div class="collection-list">${furniture.map(([name, detail]) => `<article><div class="item-icon">+</div><div><h2>${name}</h2><p>${detail}</p></div><span>家具</span></article>`).join('')}</div></section><section class="shop-section"><div class="section-title"><span>更多猫咪</span><small>售价待定</small></div><div class="collection-list">${cats.map(([name, detail]) => `<article><div class="item-icon">+</div><div><h2>${name}</h2><p>${detail}</p></div><span>外观</span></article>`).join('')}</div></section><p class="drawer-foot">家具会带来新的猫咪日常；具体价格等内容数量确定后再一起调整。</p></div></aside>
     <aside class="settings-drawer ${state.settingsOpen ? 'open' : ''}" id="settingsDrawer" aria-hidden="${state.settingsOpen ? 'false' : 'true'}"><section class="settings-sheet" aria-labelledby="settingsTitle"><header class="settings-head"><div><p>系统设置</p><h1 id="settingsTitle">陪伴的声音</h1></div><button class="close-button" id="closeSettings" type="button" aria-label="关闭系统设置">x</button></header><div class="sound-setting"><div><label for="musicVolume">背景音乐</label><output id="musicVolumeValue">${state.musicVolume}%</output></div><input id="musicVolume" type="range" min="0" max="100" value="${state.musicVolume}" aria-label="背景音乐音量"></div><div class="sound-setting"><div><label for="catVolume">猫咪声音</label><output id="catVolumeValue">${state.catVolume}%</output></div><input id="catVolume" type="range" min="0" max="100" value="${state.catVolume}" aria-label="猫咪声音音量"></div><p class="settings-hint">新的陪伴选项会慢慢放在这里。</p></section></aside>
+    ${renderStatsDrawer()}
     <div class="reward-toast" id="rewardToast" role="status" aria-live="polite"></div>
   </section>`;
   document.querySelector('#startFocus')?.addEventListener('click', startFocus);
@@ -141,6 +187,11 @@ function render() {
   document.querySelector('#openSettings')?.addEventListener('click', openSettings);
   document.querySelector('#closeSettings')?.addEventListener('click', closeSettings);
   document.querySelector('#settingsDrawer')?.addEventListener('click', event => { if (event.target === event.currentTarget) closeSettings(); });
+  document.querySelector('#openStats')?.addEventListener('click', openStats);
+  document.querySelector('#closeStats')?.addEventListener('click', closeStats);
+  document.querySelector('#statsDrawer')?.addEventListener('click', event => { if (event.target === event.currentTarget) closeStats(); });
+  document.querySelectorAll('[data-stats-period]').forEach(button => button.addEventListener('click', () => { state.statsPeriod = button.dataset.statsPeriod; render(); openStats(); }));
+  document.querySelectorAll('[data-stats-year]').forEach(button => button.addEventListener('click', () => { state.statsYear += Number(button.dataset.statsYear); render(); openStats(); }));
   document.querySelector('#musicVolume')?.addEventListener('input', event => { state.musicVolume = Number(event.target.value); document.querySelector('#musicVolumeValue').textContent = `${state.musicVolume}%`; save(); });
   document.querySelector('#catVolume')?.addEventListener('input', event => { state.catVolume = Number(event.target.value); catWakeSound.volume = state.catVolume / 100; document.querySelector('#catVolumeValue').textContent = `${state.catVolume}%`; save(); });
   document.querySelector('#finishFocus')?.addEventListener('input', updateFinishSlider);
@@ -454,7 +505,7 @@ function finishFocusEarly() {
   save();
   render();
 }
-function completeFocus() { clearInterval(ticker); clearCatVideo(); releaseFocusLock(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; state.fish += 1; state.pawDays[todayKey()] = todayPaws() + 1; state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; save(); render(); setTimeout(() => { state.view = 'rug'; render(); }, 3600); }
+function completeFocus() { clearInterval(ticker); clearCatVideo(); releaseFocusLock(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; state.fish += 1; state.pawDays[todayKey()] = todayPaws() + 1; state.focusRecords.unshift({ completedAt: Date.now(), duration: state.duration, purpose: state.purpose }); state.focusRecords = state.focusRecords.slice(0, 2000); state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; save(); render(); setTimeout(() => { state.view = 'rug'; render(); }, 3600); }
 function openCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.add('open'); d.setAttribute('aria-hidden', 'false'); }
 function closeCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.remove('open'); d.setAttribute('aria-hidden', 'true'); }
 function openSettings() {
@@ -469,6 +520,8 @@ function closeSettings() {
   drawer.classList.remove('open');
   drawer.setAttribute('aria-hidden', 'true');
 }
+function openStats() { state.statsOpen = true; const drawer = document.querySelector('#statsDrawer'); drawer?.classList.add('open'); drawer?.setAttribute('aria-hidden', 'false'); }
+function closeStats() { state.statsOpen = false; const drawer = document.querySelector('#statsDrawer'); drawer?.classList.remove('open'); drawer?.setAttribute('aria-hidden', 'true'); }
 if (state.active && state.endsAt) {
   state.remaining = Math.max(0, Math.ceil((state.endsAt - Date.now()) / 1000));
   if (state.remaining > 0) {
