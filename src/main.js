@@ -74,6 +74,16 @@ function cancelFocusEndNotification() {
   if (!window.Capacitor?.isNativePlatform?.() || !notifications) return;
   notifications.cancel({ notifications: [{ id: FOCUS_NOTIFICATION_ID }] }).catch(() => {});
 }
+function requestFocusLock() {
+  const focusLock = window.Capacitor?.Plugins?.FocusLock;
+  if (!window.Capacitor?.isNativePlatform?.() || !focusLock) return;
+  focusLock.start().catch(() => {});
+}
+function releaseFocusLock() {
+  const focusLock = window.Capacitor?.Plugins?.FocusLock;
+  if (!window.Capacitor?.isNativePlatform?.() || !focusLock) return;
+  focusLock.stop().catch(() => {});
+}
 
 function todayKey() { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); }
 function todayPaws() { return state.pawDays[todayKey()] || 0; }
@@ -154,11 +164,10 @@ function playCatVideo(source, onEnded, loop = false) {
   const nextVideo = videos[nextSlot];
   const currentVideo = activeCatSlot >= 0 ? videos[activeCatSlot] : undefined;
   activeCatPlayback = playbackId;
-  nextVideo.onloadeddata = () => {
-    if (activeCatPlayback !== playbackId) return;
-    nextVideo.loop = loop;
-    nextVideo.currentTime = 0;
-    nextVideo.play().catch(() => {});
+  let switched = false;
+  const switchWhenFirstFramePaints = () => {
+    if (switched || activeCatPlayback !== playbackId) return;
+    switched = true;
     currentVideo?.pause();
     currentVideo?.classList.remove('is-active');
     nextVideo.classList.add('is-active');
@@ -169,6 +178,22 @@ function playCatVideo(source, onEnded, loop = false) {
         onEnded?.();
       }, action?.duration || 5000);
     }
+  };
+  nextVideo.oncanplay = () => {
+    if (activeCatPlayback !== playbackId) return;
+    nextVideo.loop = loop;
+    nextVideo.currentTime = 0;
+    nextVideo.play().then(() => {
+      if (typeof nextVideo.requestVideoFrameCallback === 'function') {
+        const fallback = setTimeout(switchWhenFirstFramePaints, 180);
+        nextVideo.requestVideoFrameCallback(() => {
+          clearTimeout(fallback);
+          switchWhenFirstFramePaints();
+        });
+      } else {
+        requestAnimationFrame(() => requestAnimationFrame(switchWhenFirstFramePaints));
+      }
+    }).catch(switchWhenFirstFramePaints);
   };
   nextVideo.src = playbackId;
   nextVideo.load();
@@ -381,7 +406,7 @@ function syncFocusClock() {
   advanceCatTimeline();
 }
 function startFocusClock() { clearInterval(ticker); syncFocusClock(); ticker = setInterval(syncFocusClock, 1000); }
-function startFocus() { clearCatVideo(); state.active = true; state.view = 'rug'; state.remaining = state.duration; state.endsAt = Date.now() + state.duration * 1000; state.editingDuration = false; state.editingPurpose = false; state.note = '它已经在地毯上坐好，安静陪着你。'; save(); void scheduleFocusEndNotification(); render(); startCatSequence(); startFocusClock(); }
+function startFocus() { clearCatVideo(); state.active = true; state.view = 'rug'; state.remaining = state.duration; state.endsAt = Date.now() + state.duration * 1000; state.editingDuration = false; state.editingPurpose = false; state.note = '它已经在地毯上坐好，安静陪着你。'; save(); requestFocusLock(); void scheduleFocusEndNotification(); render(); startCatSequence(); startFocusClock(); }
 function updateFinishSlider(event) {
   const slider = event.currentTarget;
   const progress = Number(slider.value);
@@ -408,6 +433,7 @@ function endFocusEarly() {
 }
 function finishFocusEarly() {
   clearCatVideo();
+  releaseFocusLock();
   cancelFocusEndNotification();
   state.active = false;
   state.endsAt = null;
@@ -417,7 +443,7 @@ function finishFocusEarly() {
   save();
   render();
 }
-function completeFocus() { clearInterval(ticker); clearCatVideo(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; state.fish += 1; state.pawDays[todayKey()] = todayPaws() + 1; state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; save(); render(); setTimeout(() => { state.view = 'rug'; render(); }, 3600); }
+function completeFocus() { clearInterval(ticker); clearCatVideo(); releaseFocusLock(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; state.fish += 1; state.pawDays[todayKey()] = todayPaws() + 1; state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; save(); render(); setTimeout(() => { state.view = 'rug'; render(); }, 3600); }
 function openCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.add('open'); d.setAttribute('aria-hidden', 'false'); }
 function closeCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.remove('open'); d.setAttribute('aria-hidden', 'true'); }
 function openSettings() {
@@ -437,6 +463,7 @@ if (state.active && state.endsAt) {
   if (state.remaining > 0) {
     render();
     startCatSequence();
+    requestFocusLock();
     startFocusClock();
   } else {
     completeFocus();
