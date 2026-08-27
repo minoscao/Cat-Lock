@@ -32,10 +32,10 @@ const catActions = {
   tail: { source: '/videos/cat/scene-figure-layout-controls/sit-tail.mp4', duration: 5090 },
   sleepDown: { source: '/videos/cat/scene-figure-layout-controls/sleep-enter.mp4', duration: 4090 },
   sleeping: { source: '/videos/cat/scene-figure-layout-controls/prone-sleep.mp4', duration: 5090 },
-  wake: { source: '/videos/cat/scene-figure-layout-controls/stretch-wake.mp4', duration: 8080 },
+  wake: { source: '/videos/cat/scene-figure-layout-controls/stretch-wake.mp4', sound: '/audio/prone-wake-meow.mp4', duration: 8080 },
   bellyEnter: { source: '/videos/cat/scene-figure-layout-controls/sleep-to-belly.mp4', duration: 4090 },
   bellySleeping: { source: '/videos/cat/scene-figure-layout-controls/belly-loop.mp4', duration: 5040 },
-  bellyWake: { source: '/videos/cat/scene-figure-layout-controls/belly-wake.mp4', duration: 6080 }
+  bellyWake: { source: '/videos/cat/scene-figure-layout-controls/belly-wake.mp4', sound: '/audio/belly-wake-meow.mp4', duration: 6080 }
 };
 const ACTION_PAUSE_MS = 8 * 1000;
 const FOCUS_NOTIFICATION_ID = 1001;
@@ -45,6 +45,7 @@ let catPauseTimer;
 let catPlaybackTimer;
 let activeCatPlayback;
 let activeCatSlot = -1;
+const catWakeSound = new Audio();
 let catPose = 'sitting';
 let sleepRequested = false;
 let sleepBranch;
@@ -73,6 +74,13 @@ function cancelFocusEndNotification() {
   const notifications = window.Capacitor?.Plugins?.LocalNotifications;
   if (!window.Capacitor?.isNativePlatform?.() || !notifications) return;
   notifications.cancel({ notifications: [{ id: FOCUS_NOTIFICATION_ID }] }).catch(() => {});
+}
+function playCatWakeSound(source) {
+  catWakeSound.pause();
+  catWakeSound.src = source;
+  catWakeSound.currentTime = 0;
+  catWakeSound.volume = state.catVolume / 100;
+  catWakeSound.play().catch(() => {});
 }
 function requestFocusLock() {
   const focusLock = window.Capacitor?.Plugins?.FocusLock;
@@ -134,7 +142,7 @@ function render() {
   document.querySelector('#closeSettings')?.addEventListener('click', closeSettings);
   document.querySelector('#settingsDrawer')?.addEventListener('click', event => { if (event.target === event.currentTarget) closeSettings(); });
   document.querySelector('#musicVolume')?.addEventListener('input', event => { state.musicVolume = Number(event.target.value); document.querySelector('#musicVolumeValue').textContent = `${state.musicVolume}%`; save(); });
-  document.querySelector('#catVolume')?.addEventListener('input', event => { state.catVolume = Number(event.target.value); document.querySelector('#catVolumeValue').textContent = `${state.catVolume}%`; save(); });
+  document.querySelector('#catVolume')?.addEventListener('input', event => { state.catVolume = Number(event.target.value); catWakeSound.volume = state.catVolume / 100; document.querySelector('#catVolumeValue').textContent = `${state.catVolume}%`; save(); });
   document.querySelector('#finishFocus')?.addEventListener('input', updateFinishSlider);
   document.querySelector('#finishFocus')?.addEventListener('change', resetFinishSlider);
   if (state.editingDuration || state.editingPurpose) requestAnimationFrame(() => document.querySelector('#durationInput, #purposeInput')?.focus());
@@ -145,6 +153,8 @@ function clearCatVideo() {
   clearTimeout(catPlaybackTimer);
   activeCatPlayback = undefined;
   activeCatSlot = -1;
+  catWakeSound.pause();
+  catWakeSound.currentTime = 0;
   sleepRequested = false;
   sleepBranch = undefined;
   finishRequested = false;
@@ -172,6 +182,7 @@ function playCatVideo(source, onEnded, loop = false) {
     currentVideo?.classList.remove('is-active');
     nextVideo.classList.add('is-active');
     activeCatSlot = nextSlot;
+    if (action?.sound) playCatWakeSound(action.sound);
     if (!loop) {
       catPlaybackTimer = setTimeout(() => {
         if (activeCatPlayback !== playbackId) return;
