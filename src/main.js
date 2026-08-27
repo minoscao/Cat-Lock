@@ -5,7 +5,6 @@ const STORAGE_KEY = 'cat-companion-focus-v1';
 const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
 const state = {
   fish: 0,
-  pawDays: {},
   focusRecords: [],
   active: false,
   duration: DEFAULT_FOCUS_SECONDS,
@@ -20,6 +19,7 @@ const state = {
   statsOpen: false,
   statsPeriod: 'week',
   statsYear: new Date().getFullYear(),
+  statsMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   view: 'rug',
   note: '它已经在地毯上等你了。',
   ...saved
@@ -97,14 +97,21 @@ function releaseFocusLock() {
   focusLock.stop().catch(() => {});
 }
 
-function todayKey() { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); }
-function todayPaws() { return state.pawDays[todayKey()] || 0; }
 function formatTime(seconds) { return `${String(Math.floor(Math.max(0, seconds) / 60)).padStart(2, '0')}:${String(Math.max(0, seconds) % 60).padStart(2, '0')}`; }
 function formatMinutes(seconds) { const minutes = Math.round(seconds / 60); return `${minutes} 分钟`; }
 function dayKey(date) { const d = date || new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); }
 function recordsForDay(date) { const key = dayKey(date); return state.focusRecords.filter(record => dayKey(new Date(record.completedAt)) === key); }
 function totalSeconds(records) { return records.reduce((sum, record) => sum + record.duration, 0); }
 function chartPoints(values) { const max = Math.max(...values, 1); return values.map((value, index) => `${16 + index * 248 / Math.max(values.length - 1, 1)},${96 - value / max * 72}`).join(' '); }
+function chartBars(values) {
+  const max = Math.max(...values, 1);
+  const step = 248 / values.length;
+  const width = Math.min(22, step * .58);
+  return values.map((value, index) => {
+    const height = value ? Math.max(5, value / max * 72) : 3;
+    return `<rect class="stats-bar" x="${16 + index * step + (step - width) / 2}" y="${96 - height}" width="${width}" height="${height}" rx="${width / 2}"></rect>`;
+  }).join('');
+}
 function monthLabel(date) { return `${date.getMonth() + 1} 月`; }
 function statsSeries(period) {
   const now = new Date();
@@ -116,12 +123,10 @@ function statsSeries(period) {
     return { labels: ['0 点', '12 点', '24 点'], values, title: '今天的专注时段', total: values.reduce((sum, value) => sum + value, 0) };
   }
   if (period === 'month') {
-    const months = Array.from({ length: 12 }, (_, index) => new Date(now.getFullYear(), now.getMonth() - 11 + index, 1));
-    const values = months.map(month => totalSeconds(state.focusRecords.filter(record => {
-      const date = new Date(record.completedAt);
-      return date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth();
-    })));
-    return { labels: [monthLabel(months[0]), monthLabel(months[5]), monthLabel(months[11])], values, title: '近 12 个月', total: values.reduce((sum, value) => sum + value, 0) };
+    const month = new Date(state.statsMonth);
+    const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+    const values = Array.from({ length: days }, (_, index) => totalSeconds(recordsForDay(new Date(month.getFullYear(), month.getMonth(), index + 1))));
+    return { labels: ['1 日', `${Math.ceil(days / 2)} 日`, `${days} 日`], values, title: `${month.getFullYear()} 年 ${monthLabel(month)}`, total: values.reduce((sum, value) => sum + value, 0) };
   }
   if (period === 'year') {
     const year = state.statsYear;
@@ -133,23 +138,30 @@ function statsSeries(period) {
   return { labels: [days[0].toLocaleDateString('zh-CN', { weekday: 'short' }), days[3].toLocaleDateString('zh-CN', { weekday: 'short' }), '今天'], values, title: '最近 7 天', total: values.reduce((sum, value) => sum + value, 0) };
 }
 function renderStatsDrawer() {
-  const periods = [['day', '每天'], ['week', '7天'], ['month', '每月'], ['year', '每年']];
+  const periods = [['day', '今日'], ['week', '最近7天'], ['month', '月度'], ['year', '年度']];
+  const now = new Date();
   const series = statsSeries(state.statsPeriod);
-  const todaySeconds = totalSeconds(recordsForDay(new Date()));
   const recent = state.focusRecords.slice(0, 3);
-  const yearSwitcher = state.statsPeriod === 'year' ? `<div class="stats-year-switcher"><button type="button" data-stats-year="-1" aria-label="查看上一年">‹</button><strong>${state.statsYear} 年</strong><button type="button" data-stats-year="1" aria-label="查看下一年" ${state.statsYear >= new Date().getFullYear() ? 'disabled' : ''}>›</button></div>` : '';
-  return `<aside class="stats-drawer ${state.statsOpen ? 'open' : ''}" id="statsDrawer" aria-hidden="${state.statsOpen ? 'false' : 'true'}"><section class="stats-sheet" aria-labelledby="statsTitle"><header class="stats-head"><div><p>专注统计</p><h1 id="statsTitle">和猫一起慢慢积累</h1></div><button class="close-button" id="closeStats" type="button" aria-label="关闭统计">x</button></header><div class="stats-summary"><div><span>今日专注</span><strong>${formatMinutes(todaySeconds)}</strong></div><div><span>完成次数</span><strong>${recordsForDay(new Date()).length} 次</strong></div></div><div class="stats-tabs" role="tablist">${periods.map(([value, label]) => `<button class="${state.statsPeriod === value ? 'is-active' : ''}" type="button" data-stats-period="${value}" role="tab" aria-selected="${state.statsPeriod === value}">${label}</button>`).join('')}</div>${yearSwitcher}<section class="stats-chart"><div class="stats-chart-head"><span>${series.title}</span><strong>${formatMinutes(series.total)}</strong></div><svg viewBox="0 0 280 112" role="img" aria-label="${series.title}专注时长曲线"><path class="stats-grid" d="M16 24H264M16 60H264M16 96H264"></path><polyline class="stats-line" points="${chartPoints(series.values)}"></polyline>${chartPoints(series.values).split(' ').map(point => `<circle class="stats-point" cx="${point.split(',')[0]}" cy="${point.split(',')[1]}" r="3"></circle>`).join('')}</svg><div class="stats-axis"><span>${series.labels[0]}</span><span>${series.labels[1]}</span><span>${series.labels[2]}</span></div></section><section class="stats-records"><div class="stats-records-head"><span>最近完成</span><small>${state.focusRecords.length} 次累计</small></div>${recent.length ? recent.map(record => `<article><div><strong>${escapeHtml(record.purpose || '专注')}</strong><span>${new Date(record.completedAt).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}</span></div><b>${formatMinutes(record.duration)}</b></article>`).join('') : '<p class="stats-empty">完成一次专注后，这里会留下你的第一枚爪印。</p>'}</section></section></aside>`;
+  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const oldestMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const selectedMonth = new Date(state.statsMonth);
+  const monthSwitcher = state.statsPeriod === 'month' ? `<div class="stats-year-switcher"><button type="button" data-stats-month="-1" aria-label="查看上一个月" ${selectedMonth <= oldestMonth ? 'disabled' : ''}>‹</button><strong>${selectedMonth.getFullYear()} 年 ${monthLabel(selectedMonth)}</strong><button type="button" data-stats-month="1" aria-label="查看下一个月" ${selectedMonth >= currentMonth ? 'disabled' : ''}>›</button></div>` : '';
+  const yearSwitcher = state.statsPeriod === 'year' ? `<div class="stats-year-switcher"><button type="button" data-stats-year="-1" aria-label="查看上一年" ${state.statsYear <= now.getFullYear() - 1 ? 'disabled' : ''}>‹</button><strong>${state.statsYear} 年</strong><button type="button" data-stats-year="1" aria-label="查看下一年" ${state.statsYear >= now.getFullYear() ? 'disabled' : ''}>›</button></div>` : '';
+  const chart = state.statsPeriod === 'week'
+    ? chartBars(series.values)
+    : `<polyline class="stats-line" points="${chartPoints(series.values)}"></polyline>${chartPoints(series.values).split(' ').map(point => `<circle class="stats-point" cx="${point.split(',')[0]}" cy="${point.split(',')[1]}" r="3"></circle>`).join('')}`;
+  return `<aside class="stats-drawer ${state.statsOpen ? 'open' : ''}" id="statsDrawer" aria-hidden="${state.statsOpen ? 'false' : 'true'}"><section class="stats-sheet" aria-labelledby="statsTitle"><header class="stats-head"><div><p>专注统计</p><h1 id="statsTitle">和猫一起慢慢积累</h1></div><button class="close-button" id="closeStats" type="button" aria-label="关闭统计">x</button></header><div class="stats-tabs" role="tablist">${periods.map(([value, label]) => `<button class="${state.statsPeriod === value ? 'is-active' : ''}" type="button" data-stats-period="${value}" role="tab" aria-selected="${state.statsPeriod === value}">${label}</button>`).join('')}</div>${monthSwitcher}${yearSwitcher}<section class="stats-chart"><div class="stats-chart-head"><span>${series.title}</span><strong>${formatMinutes(series.total)}</strong></div><svg viewBox="0 0 280 112" role="img" aria-label="${series.title}专注时长${state.statsPeriod === 'week' ? '柱状图' : '曲线'}"><path class="stats-grid" d="M16 24H264M16 60H264M16 96H264"></path>${chart}</svg><div class="stats-axis"><span>${series.labels[0]}</span><span>${series.labels[1]}</span><span>${series.labels[2]}</span></div></section><section class="stats-records"><div class="stats-records-head"><span>最近完成</span></div>${recent.length ? recent.map(record => `<article><div><strong>${escapeHtml(record.purpose || '专注')}</strong><span>${new Date(record.completedAt).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}</span></div><b>${formatMinutes(record.duration)}</b></article>`).join('') : '<p class="stats-empty">完成一次专注后，这里会记录这段时间。</p>'}</section></section></aside>`;
 }
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, pawDays: state.pawDays, focusRecords: state.focusRecords, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume })); }
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, focusRecords: state.focusRecords, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume })); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
 
 function render() {
   const isCloseView = state.view === 'rug' || state.view === 'reward';
   const showEntryCat = state.view === 'rug' || state.view === 'reward';
   const focusControl = state.active
-    ? `<div class="timer-setup focus-running"><div class="timer-row"><strong id="countdown" class="running-countdown">${formatTime(state.remaining)}</strong></div><p class="focus-title task-title"><img class="task-paw" src="/icons/paw-print.svg" alt="">${escapeHtml(state.purpose || '专注')}</p></div>`
+    ? `<div class="timer-setup focus-running"><div class="timer-row"><strong id="countdown" class="running-countdown">${formatTime(state.remaining)}</strong></div><p class="focus-title task-title">${escapeHtml(state.purpose || '专注')}</p></div>`
     : state.view === 'reward'
-      ? `<div class="reward-state"><p>这 1 分钟，你做得很好。</p><strong>小鱼干 +1</strong><small>今日爪印 +1</small></div>`
+      ? `<div class="reward-state"><p>这段时间，你做得很好。</p><strong>小鱼干 +1</strong></div>`
       : `<div class="timer-setup"><div class="timer-row"><button class="duration-button" id="editDuration" type="button" aria-label="设置专注时长"><strong>${formatTime(state.duration)}</strong></button><button class="purpose-button" id="editPurpose" type="button" aria-label="填写本次专注内容" title="填写本次专注内容"><img class="note-icon" src="/icons/notebook-pen.svg" alt=""></button></div><p class="focus-title">${escapeHtml(state.purpose || '专注')}</p>${state.editingDuration ? `<form class="inline-editor" id="durationForm"><label>分钟<input id="durationInput" type="number" min="1" max="180" value="${Math.round(state.duration / 60)}" inputmode="numeric" required></label><button type="submit">确定</button></form>` : ''}${state.editingPurpose ? `<form class="inline-editor purpose-editor" id="purposeForm"><input id="purposeInput" type="text" maxlength="24" value="${escapeHtml(state.purpose)}" placeholder="例如：整理今天的方案" required><button type="submit">确定</button></form>` : ''}<button class="start-button" id="startFocus" type="button"><span>开始</span></button></div>`;
   app.innerHTML = `<section class="room ${state.active ? 'is-focusing' : ''} ${isCloseView ? 'is-close' : ''}">
     <div class="room-art" aria-hidden="true"></div><div class="focus-art" aria-hidden="true"></div><div class="sun-wash" aria-hidden="true"></div>
@@ -192,6 +204,12 @@ function render() {
   document.querySelector('#statsDrawer')?.addEventListener('click', event => { if (event.target === event.currentTarget) closeStats(); });
   document.querySelectorAll('[data-stats-period]').forEach(button => button.addEventListener('click', () => { state.statsPeriod = button.dataset.statsPeriod; render(); openStats(); }));
   document.querySelectorAll('[data-stats-year]').forEach(button => button.addEventListener('click', () => { state.statsYear += Number(button.dataset.statsYear); render(); openStats(); }));
+  document.querySelectorAll('[data-stats-month]').forEach(button => button.addEventListener('click', () => {
+    const month = new Date(state.statsMonth);
+    state.statsMonth = new Date(month.getFullYear(), month.getMonth() + Number(button.dataset.statsMonth), 1);
+    render();
+    openStats();
+  }));
   document.querySelector('#musicVolume')?.addEventListener('input', event => { state.musicVolume = Number(event.target.value); document.querySelector('#musicVolumeValue').textContent = `${state.musicVolume}%`; save(); });
   document.querySelector('#catVolume')?.addEventListener('input', event => { state.catVolume = Number(event.target.value); catWakeSound.volume = state.catVolume / 100; document.querySelector('#catVolumeValue').textContent = `${state.catVolume}%`; save(); });
   document.querySelector('#finishFocus')?.addEventListener('input', updateFinishSlider);
@@ -505,7 +523,7 @@ function finishFocusEarly() {
   save();
   render();
 }
-function completeFocus() { clearInterval(ticker); clearCatVideo(); releaseFocusLock(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; state.fish += 1; state.pawDays[todayKey()] = todayPaws() + 1; state.focusRecords.unshift({ completedAt: Date.now(), duration: state.duration, purpose: state.purpose }); state.focusRecords = state.focusRecords.slice(0, 2000); state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; save(); render(); setTimeout(() => { state.view = 'rug'; render(); }, 3600); }
+function completeFocus() { clearInterval(ticker); clearCatVideo(); releaseFocusLock(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; state.fish += 1; state.focusRecords.unshift({ completedAt: Date.now(), duration: state.duration, purpose: state.purpose }); state.focusRecords = state.focusRecords.slice(0, 2000); state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; save(); render(); setTimeout(() => { state.view = 'rug'; render(); }, 3600); }
 function openCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.add('open'); d.setAttribute('aria-hidden', 'false'); }
 function closeCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.remove('open'); d.setAttribute('aria-hidden', 'true'); }
 function openSettings() {
