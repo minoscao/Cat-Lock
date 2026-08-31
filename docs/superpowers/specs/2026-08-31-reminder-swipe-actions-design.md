@@ -7,7 +7,7 @@ Let a reminder reveal contextual controls when it is swiped left, while keeping 
 ## Interaction
 
 - A horizontal left swipe on a reminder opens an action rail for that reminder only.
-- The rail contains three actions in order: edit, cat-paw mark, delete.
+- The rail contains three actions in order: edit, cat-paw mark, delete. Each action is a compact module with a circular icon above and its text label below: pen / "编辑", paw / "标记", trash / "删除".
 - Swiping right, tapping outside the row, or opening another row closes the current rail.
 - The existing circular checkbox remains the completion control and is not part of the swipe rail.
 
