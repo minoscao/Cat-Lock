@@ -458,37 +458,22 @@ function playCatVideo(source, onEnded, loop = false) {
   const nextVideo = videos[nextSlot];
   const currentVideo = activeCatSlot >= 0 ? videos[activeCatSlot] : undefined;
   activeCatPlayback = playbackId;
-  let switched = false;
-  const switchWhenFirstFramePaints = () => {
-    if (switched || activeCatPlayback !== playbackId) return;
-    switched = true;
+  nextVideo.onloadeddata = () => {
+    if (activeCatPlayback !== playbackId) return;
+    nextVideo.loop = loop;
+    nextVideo.currentTime = 0;
     currentVideo?.pause();
     currentVideo?.classList.remove('is-active');
     nextVideo.classList.add('is-active');
     activeCatSlot = nextSlot;
     if (action?.sound) playCatWakeSound(action.sound);
+    nextVideo.play().catch(() => {});
     if (!loop) {
       catPlaybackTimer = setTimeout(() => {
         if (activeCatPlayback !== playbackId) return;
         onEnded?.();
       }, action?.duration || 5000);
     }
-  };
-  nextVideo.oncanplay = () => {
-    if (activeCatPlayback !== playbackId) return;
-    nextVideo.loop = loop;
-    nextVideo.currentTime = 0;
-    nextVideo.play().then(() => {
-      if (typeof nextVideo.requestVideoFrameCallback === 'function') {
-        const fallback = setTimeout(switchWhenFirstFramePaints, 180);
-        nextVideo.requestVideoFrameCallback(() => {
-          clearTimeout(fallback);
-          switchWhenFirstFramePaints();
-        });
-      } else {
-        requestAnimationFrame(() => requestAnimationFrame(switchWhenFirstFramePaints));
-      }
-    }).catch(switchWhenFirstFramePaints);
   };
   nextVideo.src = playbackId;
   nextVideo.load();
