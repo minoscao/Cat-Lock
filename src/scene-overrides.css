@@ -6,17 +6,10 @@
 }
 
 @font-face {
-  font-family: "Nunito";
+  font-family: "DynaPuff";
   font-style: normal;
-  font-weight: 400;
-  src: url('/fonts/nunito-regular.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: "Nunito";
-  font-style: normal;
-  font-weight: 600;
-  src: url('/fonts/nunito-semibold.woff2') format('woff2');
+  font-weight: 400 600;
+  src: url('/fonts/dynapuff-latin.woff2') format('woff2');
 }
 
 .room-art {
@@ -572,7 +565,7 @@ html[data-locale="ms"] .room h2,
 html[data-locale="ms"] .room label,
 html[data-locale="ms"] .room small,
 html[data-locale="ms"] .room span,
-html[data-locale="ms"] .room strong { font-family: "Nunito", sans-serif !important; }
+html[data-locale="ms"] .room strong { font-family: "DynaPuff", sans-serif !important; }
 
 html[data-locale="en"] .settings-sheet,
 html[data-locale="ms"] .settings-sheet { width: min(354px, 100%); }

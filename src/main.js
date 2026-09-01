@@ -5,8 +5,8 @@ const STORAGE_KEY = 'cat-companion-focus-v1';
 const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
 const LANGUAGE_META = {
   'zh-CN': { tag: 'zh-CN', font: 'ZCOOL KuaiLe' },
-  en: { tag: 'en-US', font: 'Nunito' },
-  ms: { tag: 'ms-MY', font: 'Nunito' }
+  en: { tag: 'en-US', font: 'DynaPuff' },
+  ms: { tag: 'ms-MY', font: 'DynaPuff' }
 };
 const COPY = {
   'zh-CN': {
