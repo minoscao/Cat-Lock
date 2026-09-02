@@ -10,21 +10,21 @@ const LANGUAGE_META = {
 };
 const COPY = {
   'zh-CN': {
-    settings: '系统设置', settingsTitle: '陪伴的声音', language: '语言', music: '背景音乐', catSound: '猫咪声音',
+    settings: '系统设置', language: '语言', music: '背景音乐', catSound: '猫咪声音',
     profile: '你的小档案', nickname: '昵称', nicknamePlaceholder: '猫咪怎么称呼你？', birthday: '生日', birthdayHint: '生日惊喜会在以后慢慢出现。',
     settingsHint: '语言、音量和小档案都会保存在这台设备上。', reminder: '提醒事项', focus: '专注', minutes: '分钟', today: '今天', tomorrow: '明天', yesterday: '昨天', beforeYesterday: '前天', afterTomorrow: '后天',
     hourly: '每小时', daily: '每天', weekly: '每周', monthly: '每月', weekdays: '工作日', weekends: '周末', biweekly: '每两周', quarterly: '每 3 个月', semiannual: '每 6 个月',
     completedAt: '完成时间：', notify: '提醒事项', nicknameFallback: '主人'
   },
   en: {
-    settings: 'Settings', settingsTitle: 'Your cozy corner', language: 'Language', music: 'Background music', catSound: 'Cat sounds',
+    settings: 'Settings', language: 'Language', music: 'Background music', catSound: 'Cat sounds',
     profile: 'About you', nickname: 'Nickname', nicknamePlaceholder: 'What should kitty call you?', birthday: 'Birthday', birthdayHint: 'Birthday surprises will arrive in a future update.',
     settingsHint: 'Language, sound, and profile details stay on this device.', reminder: 'Reminder', focus: 'Focus', minutes: 'min', today: 'Today', tomorrow: 'Tomorrow', yesterday: 'Yesterday', beforeYesterday: 'Two days ago', afterTomorrow: 'The day after tomorrow',
     hourly: 'Every hour', daily: 'Every day', weekly: 'Every week', monthly: 'Every month', weekdays: 'Weekdays', weekends: 'Weekends', biweekly: 'Every two weeks', quarterly: 'Every 3 months', semiannual: 'Every 6 months',
     completedAt: 'Completed: ', notify: 'Reminder', nicknameFallback: 'friend'
   },
   ms: {
-    settings: 'Tetapan', settingsTitle: 'Sudut selesa awak', language: 'Bahasa', music: 'Muzik latar', catSound: 'Suara si comel',
+    settings: 'Tetapan', language: 'Bahasa', music: 'Muzik latar', catSound: 'Suara si comel',
     profile: 'Tentang awak', nickname: 'Nama panggilan', nicknamePlaceholder: 'Si comel patut panggil awak apa?', birthday: 'Hari jadi', birthdayHint: 'Kejutan hari jadi akan hadir dalam kemas kini akan datang.',
     settingsHint: 'Bahasa, bunyi dan maklumat peribadi disimpan pada peranti ini.', reminder: 'Peringatan', focus: 'Fokus', minutes: 'min', today: 'Hari ini', tomorrow: 'Esok', yesterday: 'Semalam', beforeYesterday: 'Dua hari lepas', afterTomorrow: 'Lusa',
     hourly: 'Setiap jam', daily: 'Setiap hari', weekly: 'Setiap minggu', monthly: 'Setiap bulan', weekdays: 'Hari bekerja', weekends: 'Hujung minggu', biweekly: 'Setiap dua minggu', quarterly: 'Setiap 3 bulan', semiannual: 'Setiap 6 bulan',
@@ -273,7 +273,7 @@ function formatAllReminderTime(value) {
   targetDay.setHours(0, 0, 0, 0);
   const dayOffset = Math.round((targetDay - today) / 86400000);
   const time = date.toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit', hour12: false });
-  const label = dayOffset === -2 ? copy('beforeYesterday') : dayOffset === -1 ? copy('yesterday') : dayOffset === 0 ? copy('today') : dayOffset === 1 ? copy('tomorrow') : dayOffset === 2 ? copy('afterTomorrow') : date.toLocaleDateString(localeTag(), { year: 'numeric', month: 'long', day: 'numeric' });
+  const label = dayOffset === -2 ? copy('beforeYesterday') : dayOffset === -1 ? copy('yesterday') : dayOffset === 0 ? copy('today') : dayOffset === 1 ? copy('tomorrow') : dayOffset === 2 ? copy('afterTomorrow') : date.toLocaleDateString(localeTag(), { year: 'numeric', month: state.locale === 'zh-CN' ? 'long' : 'short', day: 'numeric' });
   return `${label} ${time}`;
 }
 function formatReminderDay(value) {
@@ -283,7 +283,7 @@ function formatReminderDay(value) {
   const targetDay = new Date(date);
   targetDay.setHours(0, 0, 0, 0);
   const dayOffset = Math.round((targetDay - today) / 86400000);
-  return dayOffset === -2 ? copy('beforeYesterday') : dayOffset === -1 ? copy('yesterday') : dayOffset === 0 ? copy('today') : dayOffset === 1 ? copy('tomorrow') : dayOffset === 2 ? copy('afterTomorrow') : date.toLocaleDateString(localeTag(), { year: 'numeric', month: 'long', day: 'numeric' });
+  return dayOffset === -2 ? copy('beforeYesterday') : dayOffset === -1 ? copy('yesterday') : dayOffset === 0 ? copy('today') : dayOffset === 1 ? copy('tomorrow') : dayOffset === 2 ? copy('afterTomorrow') : date.toLocaleDateString(localeTag(), { year: 'numeric', month: state.locale === 'zh-CN' ? 'long' : 'short', day: 'numeric' });
 }
 function reminderRepeatLabel(reminder) {
   const labels = { hourly: copy('hourly'), daily: copy('daily'), weekly: copy('weekly'), monthly: copy('monthly'), weekdays: copy('weekdays'), weekends: copy('weekends'), biweekly: copy('biweekly'), quarterly: copy('quarterly'), semiannual: copy('semiannual') };
@@ -826,7 +826,7 @@ function render() {
     <section class="focus-panel" aria-live="polite">${focusControl}<p class="room-note">${state.note}</p></section>
     ${state.active ? '<div class="finish-slider" id="finishSlider"><div class="finish-track"><span class="finish-track-copy">右滑放弃</span><span class="finish-track-chevron" aria-hidden="true">››</span><input id="finishFocus" type="range" min="0" max="100" value="0" aria-label="向右滑动铃铛提前结束专注"></div></div>' : ''}
     <aside class="collection-drawer" id="collectionDrawer" aria-hidden="true"><div class="drawer-sheet"><div class="drawer-head"><div><p>我的收藏</p><h1>慢慢把房间填满</h1></div><button class="close-button" id="closeCollection" type="button" aria-label="关闭收藏">x</button></div><section class="owned-section"><span class="section-label">已经拥有</span><div class="owned-items"><span>虎斑白猫</span><span>圆地毯</span></div></section><section class="shop-section"><div class="section-title"><span>互动家具</span><small>售价待定</small></div><div class="collection-list">${furniture.map(([name, detail]) => `<article><div class="item-icon">+</div><div><h2>${name}</h2><p>${detail}</p></div><span>家具</span></article>`).join('')}</div></section><section class="shop-section"><div class="section-title"><span>更多猫咪</span><small>售价待定</small></div><div class="collection-list">${cats.map(([name, detail]) => `<article><div class="item-icon">+</div><div><h2>${name}</h2><p>${detail}</p></div><span>外观</span></article>`).join('')}</div></section><p class="drawer-foot">家具会带来新的猫咪日常；具体价格等内容数量确定后再一起调整。</p></div></aside>
-    <aside class="settings-drawer ${state.settingsOpen ? 'open' : ''}" id="settingsDrawer" aria-hidden="${state.settingsOpen ? 'false' : 'true'}"><section class="settings-sheet" aria-labelledby="settingsTitle"><header class="settings-head"><div><p>${copy('settings')}</p><h1 id="settingsTitle">${copy('settingsTitle')}</h1></div><button class="close-button" id="closeSettings" type="button" aria-label="Close settings">x</button></header><section class="settings-section"><label class="settings-select" for="languageSelect"><span>${copy('language')}</span><select id="languageSelect"><option value="zh-CN" ${state.locale === 'zh-CN' ? 'selected' : ''}>中文</option><option value="en" ${state.locale === 'en' ? 'selected' : ''}>English</option><option value="ms" ${state.locale === 'ms' ? 'selected' : ''}>Bahasa Melayu</option></select></label><div class="sound-setting"><div><label for="musicVolume">${copy('music')}</label><output id="musicVolumeValue">${state.musicVolume}%</output></div><input id="musicVolume" type="range" min="0" max="100" value="${state.musicVolume}" aria-label="${copy('music')}"></div><div class="sound-setting"><div><label for="catVolume">${copy('catSound')}</label><output id="catVolumeValue">${state.catVolume}%</output></div><input id="catVolume" type="range" min="0" max="100" value="${state.catVolume}" aria-label="${copy('catSound')}"></div></section><section class="settings-section profile-section"><h2>${copy('profile')}</h2><label class="settings-profile-field" for="ownerName"><span>${copy('nickname')}</span><input id="ownerName" type="text" maxlength="24" value="${escapeHtml(state.ownerName)}"></label><label class="settings-profile-field" for="birthday"><span>${copy('birthday')}</span><input id="birthday" type="text" inputmode="numeric" maxlength="10" value="${escapeHtml(state.birthday)}" placeholder="YYYY-MM-DD"></label><p class="settings-hint">${copy('birthdayHint')}</p></section></aside>
+    <aside class="settings-drawer ${state.settingsOpen ? 'open' : ''}" id="settingsDrawer" aria-hidden="${state.settingsOpen ? 'false' : 'true'}"><section class="settings-sheet" aria-label="${copy('settings')}"><header class="settings-head"><div><p>${copy('settings')}</p></div><button class="close-button" id="closeSettings" type="button" aria-label="Close settings">x</button></header><section class="settings-section"><label class="settings-select" for="languageSelect"><span>${copy('language')}</span><select id="languageSelect"><option value="zh-CN" ${state.locale === 'zh-CN' ? 'selected' : ''}>中文</option><option value="en" ${state.locale === 'en' ? 'selected' : ''}>English</option><option value="ms" ${state.locale === 'ms' ? 'selected' : ''}>Bahasa Melayu</option></select></label><div class="sound-setting"><div><label for="musicVolume">${copy('music')}</label><output id="musicVolumeValue">${state.musicVolume}%</output></div><input id="musicVolume" type="range" min="0" max="100" value="${state.musicVolume}" aria-label="${copy('music')}"></div><div class="sound-setting"><div><label for="catVolume">${copy('catSound')}</label><output id="catVolumeValue">${state.catVolume}%</output></div><input id="catVolume" type="range" min="0" max="100" value="${state.catVolume}" aria-label="${copy('catSound')}"></div></section><section class="settings-section profile-section"><h2>${copy('profile')}</h2><label class="settings-profile-field" for="ownerName"><span>${copy('nickname')}</span><input id="ownerName" type="text" maxlength="24" value="${escapeHtml(state.ownerName)}"></label><label class="settings-profile-field" for="birthday"><span>${copy('birthday')}</span><input id="birthday" type="text" inputmode="numeric" maxlength="10" value="${escapeHtml(state.birthday)}" placeholder="YYYY-MM-DD"></label><p class="settings-hint">${copy('birthdayHint')}</p></section></aside>
     ${renderReminderDrawer()}
     ${renderStatsDrawer()}
     <div class="reward-toast" id="rewardToast" role="status" aria-live="polite"></div>
