@@ -364,11 +364,16 @@ function cancelFocusEndNotification() {
   notifications.cancel({ notifications: [{ id: FOCUS_NOTIFICATION_ID }] }).catch(() => {});
 }
 function playCatWakeSound(source) {
+  if (!source) return;
   catWakeSound.pause();
   catWakeSound.src = source;
   catWakeSound.currentTime = 0;
   catWakeSound.volume = state.catVolume / 100;
   catWakeSound.play().catch(() => {});
+}
+function stopCatWakeSound() {
+  catWakeSound.pause();
+  catWakeSound.currentTime = 0;
 }
 function requestFocusLock() {
   const focusLock = window.Capacitor?.Plugins?.FocusLock;
@@ -1660,8 +1665,7 @@ function clearCatVideo() {
   document.querySelector('#catChromaCanvas')?.classList.remove('is-active');
   activeCatPlayback = undefined;
   activeCatSlot = -1;
-  catWakeSound.pause();
-  catWakeSound.currentTime = 0;
+  stopCatWakeSound();
   sleepRequested = false;
   sleepBranch = undefined;
   finishRequested = false;
@@ -1699,8 +1703,7 @@ function playChromaCatVideo(action, onEnded) {
       context.putImageData(frame, 0, 0);
       catChromaFrame = requestAnimationFrame(drawFrame);
     };
-    playCatWakeSound(action.sound);
-    video.play().catch(() => {});
+    video.play().then(() => playCatWakeSound(action.sound)).catch(() => {});
     drawFrame();
   }, { once: true });
   video.addEventListener('ended', () => {
@@ -1708,6 +1711,7 @@ function playChromaCatVideo(action, onEnded) {
     cancelAnimationFrame(catChromaFrame);
     canvas.classList.remove('is-active');
     activeChromaVideo = undefined;
+    stopCatWakeSound();
     onEnded?.();
   }, { once: true });
 }
