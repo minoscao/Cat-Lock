@@ -34,10 +34,24 @@ const COPY = {
 function copy(key) { return COPY[state.locale]?.[key] || COPY['zh-CN'][key] || key; }
 function localeTag() { return LANGUAGE_META[state.locale]?.tag || 'zh-CN'; }
 function ownerName() { return state.ownerName?.trim() || copy('nicknameFallback'); }
+function catName() { return state.catName?.trim() || (state.locale === 'en' ? 'Kitty' : state.locale === 'ms' ? 'Si comel' : '咪咪'); }
 function catReminderCopy(title) {
   if (state.locale === 'en') return `Hey ${ownerName()}, kitty says it is time for ${title}.`;
   if (state.locale === 'ms') return `${ownerName()}, si comel kata sudah tiba masa untuk: ${title}.`;
   return `${ownerName()}，小猫提醒你：${title}`;
+}
+function reminderLeadTime(reminder) {
+  const minutes = Math.max(0, Math.ceil((reminder.at - Date.now()) / 60000));
+  if (state.locale === 'en') return minutes ? `${minutes} minute${minutes === 1 ? '' : 's'} to go` : 'it is time now';
+  if (state.locale === 'ms') return minutes ? `tinggal ${minutes} minit` : 'sudah tiba masanya';
+  return minutes ? `还剩 ${minutes} 分钟` : '已经到时间了';
+}
+function bellReminderCopy(reminder) {
+  const title = reminderTitleLabel(reminder.title);
+  if (state.locale === 'en') return `${ownerName()}, ${catName()} says: ${title} is ${reminderLeadTime(reminder)}. Time to get ready, meow~`;
+  if (state.locale === 'ms') return `${ownerName()}, ${catName()} ingatkan: ${reminderLeadTime(reminder)} sebelum ${title}. Jom bersiap, meow~`;
+  if (reminder.at <= Date.now() || !(Number(reminder.advanceMinutes) > 0)) return `${ownerName()}，${catName()}提醒你：[${title}]已经到时间了，抓紧行动起来吧喵~`;
+  return `${ownerName()}，${catName()}提醒你：离[${title}]${reminderLeadTime(reminder)}，抓紧行动起来吧喵~`;
 }
 function subtaskCountLabel(count) {
   if (state.locale === 'en') return `${count} ${count === 1 ? 'subtask' : 'subtasks'}`;
@@ -146,6 +160,7 @@ const state = {
   focusRecords: [],
   reminders: [],
   completedSubtasks: [],
+  reminderLastTriggeredAt: {},
   active: false,
   duration: DEFAULT_FOCUS_SECONDS,
   remaining: DEFAULT_FOCUS_SECONDS,
@@ -155,7 +170,12 @@ const state = {
   catVolume: 70,
   locale: 'zh-CN',
   ownerName: '',
+  ownerNameLocked: false,
+  catName: '',
+  catNameLocked: false,
   birthday: '',
+  birthdayUpdatedAt: null,
+  profileEditing: null,
   editingDuration: false,
   editingPurpose: false,
   settingsOpen: false,
@@ -191,6 +211,14 @@ const state = {
   note: '它已经在地毯上等你了。',
   ...saved
 };
+if (!saved.reminderLastTriggeredAt) {
+  const now = Date.now();
+  state.reminderLastTriggeredAt = Object.fromEntries(
+    state.reminders
+      .filter(reminder => !reminder.completed && reminder.at - (Number(reminder.advanceMinutes) || 0) * 60000 <= now)
+      .map(reminder => [reminder.id, now])
+  );
+}
 const furniture = [
   ['沙发', '霸占座位、靠着抱枕、睡到四脚朝天。'],
   ['猫爬架', '看窗外、待在高处、抓抓柱子。']
@@ -207,13 +235,16 @@ const catActions = {
   bellyEnter: { source: '/videos/cat/scene-figure-layout-controls/sleep-to-belly.mp4', duration: 4090 },
   bellySleeping: { source: '/videos/cat/scene-figure-layout-controls/belly-loop.mp4', duration: 5040 },
   bellyWake: { source: '/videos/cat/scene-figure-layout-controls/belly-wake.mp4', sound: '/audio/belly-wake-meow.mp4', duration: 6080 },
-  pawScratch: { source: '/videos/cat/scene-figure-layout-controls/paw-scratch.mp4', sound: '/audio/prone-wake-meow.mp4', duration: 3200 }
+  pawScratch: { source: '/videos/cat/scene-figure-layout-controls/paw-scratch-composited.mp4', sound: '/audio/paw-scratch-meow.mp3', duration: 6040, composited: true }
 };
 const ACTION_PAUSE_MS = 8 * 1000;
 const FOCUS_NOTIFICATION_ID = 1001;
 const REMINDER_NOTIFICATION_BASE = 200000;
 const app = document.querySelector('#app');
+const roomArtFrame = new Image();
+roomArtFrame.src = '/images/cat-room/sofa-rug-focus-figure-layout-controls-v1.png';
 let ticker;
+let visibleDueReminderId = null;
 let catPauseTimer;
 let catPlaybackTimer;
 let activeCatPlayback;
@@ -228,14 +259,53 @@ let sittingActionRequested = false;
 let nextCloserAt = 120;
 let lobbyIdleRounds = 0;
 let reminderReactionPlaying = false;
+let activeReminderReactionId = null;
+let reminderBellTargetId = null;
+let reminderBellAcknowledged = false;
+let reminderBellDialogId = null;
 let catChromaFrame;
+let catVideoFrameCallback;
+let catChromaSettleTimer;
 let activeChromaVideo;
+let catAudioPrimed = false;
 
 function localNotifications() { return window.Capacitor?.Plugins?.LocalNotifications; }
 function urgentAlarm() { return window.Capacitor?.Plugins?.UrgentAlarm; }
 function nextReminderId() { return Math.max(0, ...state.reminders.map(reminder => reminder.id)) + 1; }
 function reminderNotificationId(reminder) { return REMINDER_NOTIFICATION_BASE + reminder.id; }
 function reminderNotificationAt(reminder) { return reminder.at - (Number(reminder.advanceMinutes) || 0) * 60 * 1000; }
+function dueReminder() {
+  return state.reminders
+    .filter(reminder => !reminder.completed && reminderNotificationAt(reminder) <= Date.now())
+    .sort((first, second) => reminderNotificationAt(second) - reminderNotificationAt(first))[0];
+}
+function dueReminderCount() {
+  return state.reminders.filter(reminder => !reminder.completed && reminderNotificationAt(reminder) <= Date.now()).length;
+}
+function nextReminderAlertAt(reminder) {
+  const lastTriggeredAt = Number(state.reminderLastTriggeredAt?.[reminder.id]);
+  if (!lastTriggeredAt) return reminderNotificationAt(reminder) <= Date.now() ? reminderNotificationAt(reminder) : null;
+  if (!reminderRepeatLabel(reminder)) return null;
+  const advanceMs = (Number(reminder.advanceMinutes) || 0) * 60000;
+  const nextEventAt = nextReminderOccurrence(reminder, lastTriggeredAt + advanceMs);
+  const nextAlertAt = nextEventAt - advanceMs;
+  return nextAlertAt <= Date.now() ? nextAlertAt : null;
+}
+function nextReminderAlert() {
+  return state.reminders
+    .filter(reminder => !reminder.completed)
+    .map(reminder => ({ reminder, at: nextReminderAlertAt(reminder) }))
+    .filter(item => item.at !== null)
+    .sort((first, second) => second.at - first.at)[0];
+}
+function syncDueReminderBell() {
+  if (reminderReactionPlaying) return;
+  const nextDueReminderId = !state.active && state.view === 'rug' ? nextReminderAlert()?.reminder.id || null : null;
+  if (nextDueReminderId === visibleDueReminderId) return;
+  visibleDueReminderId = nextDueReminderId;
+  if (nextDueReminderId) playReminderReaction(nextDueReminderId);
+  else render();
+}
 function reminderSchedule(reminder) {
   const at = new Date(reminderNotificationAt(reminder));
   return { at };
@@ -324,14 +394,82 @@ function cancelReminderNotification(reminder) {
 function playReminderReaction(reminderId) {
   const reminder = state.reminders.find(item => item.id === reminderId);
   if (!reminder || state.active || state.view !== 'rug') return;
+  if (activeReminderReactionId === reminderId) return;
+  state.reminderLastTriggeredAt ||= {};
+  state.reminderLastTriggeredAt[reminderId] = nextReminderAlertAt(reminder) || reminderNotificationAt(reminder);
+  save();
+  activeReminderReactionId = reminderId;
+  reminderBellTargetId = reminderId;
+  reminderBellAcknowledged = false;
   reminderReactionPlaying = true;
   clearCatVideo();
   state.note = catReminderCopy(reminder.title);
   render();
-  playChromaCatVideo(catActions.pawScratch, () => {
-    reminderReactionPlaying = false;
-    state.note = '它又在地毯上安静等着你了。';
-    render();
+  requestAnimationFrame(() => {
+    if (activeReminderReactionId !== reminderId) return;
+    playChromaCatVideo(catActions.pawScratch, () => {
+      activeReminderReactionId = null;
+      reminderReactionPlaying = false;
+      state.note = '它又在地毯上安静等着你了。';
+      render();
+    }, true);
+  });
+}
+function acknowledgeReminderBell() {
+  if (!activeReminderReactionId) return;
+  reminderBellAcknowledged = true;
+  if (activeChromaVideo) activeChromaVideo.loop = false;
+  catWakeSound.loop = false;
+  document.querySelector('#openReminderBell')?.classList.remove('is-ringing');
+}
+function completeReminderFromBell(reminder) {
+  reminderBellTargetId = null;
+  cancelReminderNotification(reminder);
+  const nextAt = nextReminderOccurrence(reminder);
+  reminder.completed = true;
+  reminder.completedAt = Date.now();
+  if (nextAt) {
+    const pendingSubtasks = (reminder.subtasks || [])
+      .filter(task => task && !task.startsWith('[done] '))
+      .map(task => task.replace(/^\[done\]\s*/, ''));
+    const nextReminder = {
+      ...reminder,
+      id: nextReminderId(),
+      at: nextAt,
+      completed: false,
+      completedAt: null,
+      completing: false,
+      subtasks: pendingSubtasks,
+      repeatSubtasks: pendingSubtasks,
+      subtaskTotal: pendingSubtasks.length
+    };
+    state.reminders.push(nextReminder);
+    void scheduleReminderNotification(nextReminder);
+  }
+  save();
+}
+function openReminderBellDialog(reminder) {
+  if (!reminder || document.querySelector('#reminderBellDialog')) return;
+  acknowledgeReminderBell();
+  reminderBellDialogId = reminder.id;
+  mountReminderBellDialog(reminder);
+}
+function mountReminderBellDialog(reminder) {
+  if (!reminder || document.querySelector('#reminderBellDialog')) return;
+  const isChinese = state.locale === 'zh-CN';
+  const isMalay = state.locale === 'ms';
+  const later = isChinese ? '再等等' : isMalay ? 'Tunggu sekejap' : 'Not yet';
+  const done = isChinese ? '放心吧' : isMalay ? 'Saya akan buat' : 'I\'ve got it';
+  app.insertAdjacentHTML('beforeend', `<section class="bell-reminder-backdrop" id="reminderBellDialog" role="dialog" aria-modal="true" aria-labelledby="bellReminderTitle"><div class="bell-reminder-dialog"><img class="bell-note-art" src="/images/reminders/cat-stationery-note.png" alt=""><h2 id="bellReminderTitle">${escapeHtml(bellReminderCopy(reminder))}</h2>${reminder.description ? `<span class="bell-reminder-detail">${escapeHtml(reminder.description)}</span>` : ''}<div class="bell-reminder-actions"><button id="bellReminderLater" type="button">${later}<img src="/icons/paw-print.svg" alt=""></button><button id="bellReminderDone" type="button">${done}<img src="/icons/paw-print.svg" alt=""></button></div></div></section>`);
+  const dialog = document.querySelector('#reminderBellDialog');
+  dialog.querySelector('#bellReminderLater').addEventListener('click', () => {
+    reminderBellDialogId = null;
+    dialog.remove();
+  });
+  dialog.querySelector('#bellReminderDone').addEventListener('click', () => {
+    completeReminderFromBell(reminder);
+    reminderBellDialogId = null;
+    dialog.remove();
   });
 }
 function initializeReminderNotifications() {
@@ -363,17 +501,32 @@ function cancelFocusEndNotification() {
   if (!window.Capacitor?.isNativePlatform?.() || !notifications) return;
   notifications.cancel({ notifications: [{ id: FOCUS_NOTIFICATION_ID }] }).catch(() => {});
 }
-function playCatWakeSound(source) {
+function playCatWakeSound(source, loop = false) {
   if (!source) return;
   catWakeSound.pause();
-  catWakeSound.src = source;
+  if (!catWakeSound.src.endsWith(source)) catWakeSound.src = source;
   catWakeSound.currentTime = 0;
+  catWakeSound.loop = loop;
   catWakeSound.volume = state.catVolume / 100;
   catWakeSound.play().catch(() => {});
+}
+function primeCatAudio() {
+  if (catAudioPrimed) return;
+  catWakeSound.src = '/audio/paw-scratch-meow.mp3';
+  catWakeSound.preload = 'auto';
+  catWakeSound.volume = 0;
+  catWakeSound.play().then(() => {
+    catWakeSound.pause();
+    catWakeSound.currentTime = 0;
+    catWakeSound.volume = state.catVolume / 100;
+    catAudioPrimed = true;
+    if (activeReminderReactionId && !reminderBellAcknowledged) playCatWakeSound(catActions.pawScratch.sound);
+  }).catch(() => {});
 }
 function stopCatWakeSound() {
   catWakeSound.pause();
   catWakeSound.currentTime = 0;
+  catWakeSound.loop = false;
 }
 function requestFocusLock() {
   const focusLock = window.Capacitor?.Plugins?.FocusLock;
@@ -489,7 +642,7 @@ function renderCalendarPicker() {
     if (index < firstWeekday) return '<span class="calendar-day is-blank"></span>';
     const day = index - firstWeekday + 1;
     const active = hasFocusOnDay(state.calendarYear, state.calendarMonth, day);
-    const selected = state.statsDay.getFullYear() === state.calendarYear && state.statsDay.getMonth() === state.calendarMonth && state.statsDay.getDate() === day;
+    const selected = active && state.statsDay.getFullYear() === state.calendarYear && state.statsDay.getMonth() === state.calendarMonth && state.statsDay.getDate() === day;
     return `<button class="calendar-day ${active ? 'has-record' : ''} ${selected ? 'is-selected' : ''}" type="button" data-calendar-day="${day}" ${active ? '' : 'disabled'}>${day}</button>`;
   }).join('');
   return `<section class="stats-calendar" aria-label="${statsText('selectDate')}"><header><div><p>${statsText('selectDate')}</p><strong>${statsText('recordedDates')}</strong></div><button class="close-button" id="closeCalendar" type="button" aria-label="Close calendar">x</button></header><div class="calendar-selectors">${calendarPickerButton(statsYearLabel(state.calendarYear), 'year', yearOptions)}${calendarPickerButton(statsMonthLabel(state.calendarYear, state.calendarMonth), 'month', monthOptions)}</div><div class="calendar-weekdays">${pickerWeekdays().map(day => `<span>${day}</span>`).join('')}</div><div class="calendar-grid">${dayCells}</div></section>`;
@@ -522,7 +675,10 @@ function statsPicker(period) {
 }
 function statsSelectionLabel(index, series) {
   if (state.statsPeriod === 'week') {
-    return statsText('dayTotal');
+    const date = series.days[index];
+    return state.locale === 'zh-CN'
+      ? `${date.getMonth() + 1}月${date.getDate()}日累计专注`
+      : `${shortDate(date)} ${state.locale === 'ms' ? 'jumlah' : 'total'}`;
   }
   if (state.statsPeriod === 'month') {
     const month = new Date(state.statsMonth);
@@ -625,6 +781,224 @@ function reminderInputValue(time = Date.now()) {
 }
 function reminderDateValue(time = Date.now()) { return reminderInputValue(time).slice(0, 10); }
 function reminderTimeValue(time = Date.now()) { return reminderInputValue(time).slice(11); }
+function calendarInputValue(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function calendarInputLabel(value, fallback = 'YYYY-MM-DD') {
+  if (!value) return fallback;
+  const date = new Date(`${value}T00:00`);
+  return state.locale === 'zh-CN'
+    ? `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
+    : new Intl.DateTimeFormat(localeTag(), { year: 'numeric', month: 'short', day: 'numeric' }).format(date);
+}
+function openSharedDatePicker({ input, trigger, min = '', max = '', fallback = Date.now(), onChange, closeOnSelect = true }) {
+  document.querySelector('#sharedDatePicker')?.remove();
+  const current = input.value ? new Date(`${input.value}T00:00`) : new Date(fallback);
+  let view = new Date(current.getFullYear(), current.getMonth(), 1);
+  let mode = 'calendar';
+  const anchor = trigger.closest('.date-picker-anchor');
+  if (!anchor) return;
+  anchor.insertAdjacentHTML('afterend', '<section class="shared-date-picker" id="sharedDatePicker"><div id="sharedDatePickerContent"></div></section>');
+  const picker = document.querySelector('#sharedDatePicker');
+  const renderPicker = () => {
+    const year = view.getFullYear();
+    const month = view.getMonth();
+    if (mode === 'quick') {
+      const minYear = min ? Number(min.slice(0, 4)) : 1900;
+      const maxYear = max ? Number(max.slice(0, 4)) : new Date().getFullYear() + 20;
+      const years = Array.from({ length: maxYear - minYear + 1 }, (_, index) => minYear + index)
+        .map(value => `<button class="${year === value ? 'is-selected' : ''}" type="button" data-shared-year="${value}">${state.locale === 'zh-CN' ? `${value}年` : value}</button>`).join('');
+      const months = Array.from({ length: 12 }, (_, index) => `<button class="${month === index ? 'is-selected' : ''}" type="button" data-shared-month-choice="${index}">${state.locale === 'zh-CN' ? `${index + 1}月` : new Intl.DateTimeFormat(localeTag(), { month: 'long' }).format(new Date(year, index, 1))}</button>`).join('');
+      picker.querySelector('#sharedDatePickerContent').innerHTML = `<button class="reminder-picker-title" type="button" data-shared-mode="calendar">${yearMonthLabel(view)} <i>⌄</i></button><div class="reminder-wheel-columns shared-date-wheel"><div>${years}</div><div>${months}</div></div>`;
+      const bindQuickColumn = (column, selector, apply) => {
+        const buttons = [...column.querySelectorAll(selector)];
+        const updateTitle = () => {
+          const title = picker.querySelector('.reminder-picker-title');
+          if (title) title.innerHTML = `${yearMonthLabel(view)} <i>⌄</i>`;
+        };
+        const pick = button => {
+          if (!button) return;
+          buttons.forEach(item => item.classList.toggle('is-selected', item === button));
+          apply(Number(button.dataset.sharedYear ?? button.dataset.sharedMonthChoice));
+          updateTitle();
+        };
+        const syncToCenter = () => {
+          const center = column.getBoundingClientRect().top + column.clientHeight / 2;
+          const closest = buttons.reduce((nearest, button) => {
+            const distance = Math.abs(button.getBoundingClientRect().top + button.offsetHeight / 2 - center);
+            return !nearest || distance < nearest.distance ? { button, distance } : nearest;
+          }, null);
+          pick(closest?.button);
+        };
+        buttons.forEach(button => button.addEventListener('click', () => {
+          column.scrollTo({ top: button.offsetTop - 76, behavior: 'smooth' });
+          pick(button);
+        }));
+        let dragStart = null;
+        column.addEventListener('pointerdown', event => {
+          dragStart = { id: event.pointerId, y: event.clientY, top: column.scrollTop };
+          column.setPointerCapture(event.pointerId);
+        });
+        column.addEventListener('pointermove', event => {
+          if (!dragStart || dragStart.id !== event.pointerId) return;
+          column.scrollTop = dragStart.top + dragStart.y - event.clientY;
+        });
+        column.addEventListener('pointerup', event => {
+          if (dragStart?.id !== event.pointerId) return;
+          dragStart = null;
+          syncToCenter();
+        });
+        let scrolling = false;
+        column.addEventListener('scroll', () => {
+          if (scrolling) return;
+          scrolling = true;
+          requestAnimationFrame(() => {
+            scrolling = false;
+            syncToCenter();
+          });
+        });
+        requestAnimationFrame(() => {
+          const selected = buttons.find(button => button.classList.contains('is-selected'));
+          if (selected) column.scrollTop = selected.offsetTop - 76;
+          syncToCenter();
+        });
+      };
+      picker.querySelector('[data-shared-mode]')?.addEventListener('click', () => { mode = 'calendar'; renderPicker(); });
+      const [yearColumn, monthColumn] = picker.querySelectorAll('.shared-date-wheel > div');
+      bindQuickColumn(yearColumn, '[data-shared-year]', value => { view = new Date(value, view.getMonth(), 1); });
+      bindQuickColumn(monthColumn, '[data-shared-month-choice]', value => { view = new Date(view.getFullYear(), value, 1); });
+      return;
+    }
+    const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
+    const days = new Date(year, month + 1, 0).getDate();
+    const cells = Array.from({ length: firstWeekday + days }, (_, index) => {
+      if (index < firstWeekday) return '<span></span>';
+      const day = index - firstWeekday + 1;
+      const value = calendarInputValue(new Date(year, month, day));
+      const disabled = (min && value < min) || (max && value > max);
+      return `<button class="${input.value === value ? 'is-selected' : ''}" type="button" data-shared-date="${value}" ${disabled ? 'disabled' : ''}>${day}</button>`;
+    }).join('');
+    picker.querySelector('#sharedDatePickerContent').innerHTML = `<div class="reminder-date-nav"><strong><button type="button" data-shared-mode="quick">${yearMonthLabel(view)} <i>›</i></button></strong><span><button type="button" data-shared-month="-1" aria-label="Previous month">‹</button><button type="button" data-shared-month="1" aria-label="Next month">›</button></span></div><div class="reminder-picker-weekdays">${pickerWeekdays().map(day => `<span>${day}</span>`).join('')}</div><div class="reminder-picker-calendar">${cells}</div>`;
+    picker.querySelector('[data-shared-mode]')?.addEventListener('click', () => { mode = 'quick'; renderPicker(); });
+    picker.querySelectorAll('[data-shared-month]').forEach(button => button.addEventListener('click', () => {
+      view = new Date(year, month + Number(button.dataset.sharedMonth), 1);
+      renderPicker();
+    }));
+    picker.querySelectorAll('[data-shared-date]').forEach(button => button.addEventListener('click', () => {
+      input.value = button.dataset.sharedDate;
+      trigger.querySelector('b, span')?.replaceChildren(calendarInputLabel(input.value));
+      onChange?.(input.value);
+      if (closeOnSelect) picker.remove();
+      else renderPicker();
+    }));
+  };
+  renderPicker();
+}
+function attachSharedDatePickerControl({ input, triggerId, label = '', fallback, min, max, onChange, closeOnSelect }) {
+  if (!input || document.querySelector(`#${triggerId}`)) return;
+  input.type = 'hidden';
+  input.insertAdjacentHTML('beforebegin', `<div class="date-picker-anchor"><button class="shared-date-trigger" id="${triggerId}" type="button">${label ? `<span>${escapeHtml(label)}</span>` : ''}<b>${calendarInputLabel(input.value, 'YYYY-MM-DD')}</b></button></div>`);
+  input.previousElementSibling.append(input);
+  const trigger = document.querySelector(`#${triggerId}`);
+  trigger.addEventListener('click', () => openSharedDatePicker({ input, trigger, fallback, min, max, onChange, closeOnSelect }));
+}
+function profileCopy(key) {
+  const text = {
+    owner: ['主人昵称', 'Your name', 'Nama anda'],
+    cat: ['猫咪昵称', 'Kitty\'s name', 'Nama si comel'],
+    birthday: ['生日', 'Birthday', 'Hari jadi'],
+    unset: ['未设置', 'Not set', 'Belum ditetapkan'],
+    edit: ['编辑', 'Edit', 'Sunting'],
+    confirmInput: ['确认', 'Confirm', 'Sahkan'],
+    namesTitle: ['确认昵称吗？', 'Confirm these names?', 'Sahkan nama ini?'],
+    namesBody: ['再次修改需要使用道具「改名卡」。', 'Changing it again will require a Rename Card.', 'Untuk menukar lagi, Kad Tukar Nama diperlukan.'],
+    birthdayTitle: ['确认生日吗？', 'Confirm birthday?', 'Sahkan hari jadi?'],
+    birthdayBody: ['提交后，生日每年只能修改一次。', 'After submitting, birthday can be changed once every 365 days.', 'Selepas dihantar, hari jadi hanya boleh diubah sekali setiap 365 hari.'],
+    cancel: ['再想想', 'Not yet', 'Fikir dulu'],
+    confirm: ['确认提交', 'Confirm', 'Sahkan']
+  };
+  return text[key]?.[state.locale === 'zh-CN' ? 0 : state.locale === 'en' ? 1 : 2] || '';
+}
+function canEditBirthday() {
+  return !state.birthdayUpdatedAt || Date.now() - state.birthdayUpdatedAt >= 365 * 24 * 60 * 60 * 1000;
+}
+function openProfileConfirmation(kind, onConfirm) {
+  if (document.querySelector('#profileConfirmation')) return;
+  const isBirthday = kind === 'birthday';
+  app.insertAdjacentHTML('beforeend', `<section class="profile-confirm-backdrop" id="profileConfirmation" role="dialog" aria-modal="true" aria-labelledby="profileConfirmTitle"><div class="profile-confirm-dialog"><h2 id="profileConfirmTitle">${profileCopy(isBirthday ? 'birthdayTitle' : 'namesTitle')}</h2><p>${profileCopy(isBirthday ? 'birthdayBody' : 'namesBody')}</p><div><button id="cancelProfileConfirm" type="button">${profileCopy('cancel')}</button><button id="confirmProfileConfirm" type="button">${profileCopy('confirm')}</button></div></div></section>`);
+  const dialog = document.querySelector('#profileConfirmation');
+  dialog.querySelector('#cancelProfileConfirm').addEventListener('click', () => dialog.remove());
+  dialog.querySelector('#confirmProfileConfirm').addEventListener('click', () => {
+    onConfirm();
+    dialog.remove();
+  });
+}
+function setupProfileControls() {
+  const section = document.querySelector('.profile-section');
+  if (!section) return;
+  const editing = state.profileEditing;
+  const row = (kind, label, value, locked) => `<div class="profile-display-row"><span>${label}</span><div><b>${escapeHtml(value || profileCopy('unset'))}</b>${locked ? '' : `<button class="profile-edit-button" type="button" data-profile-edit="${kind}" aria-label="${profileCopy('edit')} ${label}" title="${profileCopy('edit')}"><img src="/icons/notebook-pen.svg" alt=""></button>`}</div></div>`;
+  const nameEditor = ['owner', 'cat'].includes(editing)
+    ? `<form class="profile-editor" id="profileNameForm"><input id="profileNameInput" type="text" maxlength="24" value="${escapeHtml(editing === 'owner' ? state.ownerName : state.catName || catName())}" autofocus><button type="submit">${profileCopy('confirmInput')}</button></form>`
+    : '';
+  const birthdayEditor = editing === 'birthday'
+    ? `<div class="profile-editor profile-birthday-editor"><input id="birthday" type="hidden" value="${escapeHtml(state.birthdayDraft || state.birthday)}"><button id="confirmBirthdayEdit" type="button">${profileCopy('confirmInput')}</button></div>`
+    : '';
+  section.innerHTML = `<h2>${copy('profile')}</h2>${row('owner', profileCopy('owner'), state.ownerName, state.ownerNameLocked)}${editing === 'owner' ? nameEditor : ''}${row('cat', profileCopy('cat'), state.catName || catName(), state.catNameLocked)}${editing === 'cat' ? nameEditor : ''}${row('birthday', profileCopy('birthday'), calendarInputLabel(state.birthday, profileCopy('unset')), !canEditBirthday())}${birthdayEditor}<p class="settings-hint">${copy('birthdayHint')}</p>`;
+  section.querySelectorAll('[data-profile-edit]').forEach(button => button.addEventListener('click', () => {
+    state.profileEditing = button.dataset.profileEdit;
+    render();
+    openSettings();
+  }));
+  const nameForm = document.querySelector('#profileNameForm');
+  nameForm?.addEventListener('submit', event => {
+    event.preventDefault();
+    const value = document.querySelector('#profileNameInput').value.trim();
+    const kind = state.profileEditing;
+    if (!value) return;
+    openProfileConfirmation('names', () => {
+      if (kind === 'owner') {
+        state.ownerName = value;
+        state.ownerNameLocked = true;
+      } else {
+        state.catName = value;
+        state.catNameLocked = true;
+      }
+      state.profileEditing = null;
+      save();
+      render();
+      openSettings();
+    });
+  });
+  const birthdayInput = document.querySelector('#birthday');
+  if (!birthdayInput) return;
+  attachSharedDatePickerControl({
+    input: birthdayInput,
+    triggerId: 'openBirthdayDate',
+    fallback: birthdayInput.value ? new Date(`${birthdayInput.value}T00:00`) : new Date(2000, 0, 1),
+    max: reminderDateValue(),
+    onChange: value => { state.birthdayDraft = value; },
+    closeOnSelect: false
+  });
+  document.querySelector('#confirmBirthdayEdit')?.addEventListener('click', () => {
+    const value = state.birthdayDraft || birthdayInput.value;
+    if (!value) return;
+    document.querySelector('#sharedDatePicker')?.remove();
+    openProfileConfirmation('birthday', () => {
+      state.birthday = value;
+      state.birthdayUpdatedAt = Date.now();
+      delete state.birthdayDraft;
+      state.profileEditing = null;
+      save();
+      render();
+      openSettings();
+    });
+  });
+  requestAnimationFrame(() => {
+    if (state.profileEditing === 'birthday') document.querySelector('#openBirthdayDate')?.click();
+    if (['owner', 'cat'].includes(state.profileEditing)) document.querySelector('#profileNameInput')?.focus();
+  });
+}
 function reminderDateLabel(value) {
   const date = new Date(`${value}T00:00`);
   return state.locale === 'zh-CN'
@@ -810,7 +1184,7 @@ function renderReminderDrawer() {
   const sheetLabel = state.reminderView === 'overview' ? 'aria-labelledby="remindersTitle"' : 'aria-label="提醒列表"';
   return `<aside class="reminders-drawer ${state.remindersOpen ? 'open' : ''}" id="remindersDrawer" aria-hidden="${state.remindersOpen ? 'false' : 'true'}"><section class="reminders-sheet ${state.reminderView === 'overview' ? '' : 'is-detail'}" ${sheetLabel}><header class="reminders-head">${heading}${state.reminderView === 'overview' ? '<button class="close-button" id="closeReminders" type="button" aria-label="关闭提醒">×</button>' : ''}</header>${body}${addButton}${composer}</section></aside>`;
 }
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, focusRecords: state.focusRecords, reminders: state.reminders, completedSubtasks: state.completedSubtasks, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume, locale: state.locale, ownerName: state.ownerName, birthday: state.birthday })); }
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, focusRecords: state.focusRecords, reminders: state.reminders, completedSubtasks: state.completedSubtasks, reminderLastTriggeredAt: state.reminderLastTriggeredAt, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume, locale: state.locale, ownerName: state.ownerName, ownerNameLocked: state.ownerNameLocked, catName: state.catName, catNameLocked: state.catNameLocked, birthday: state.birthday, birthdayUpdatedAt: state.birthdayUpdatedAt })); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
 
 function render() {
@@ -818,6 +1192,9 @@ function render() {
   document.documentElement.dataset.locale = state.locale;
   const isCloseView = state.view === 'rug' || state.view === 'reward';
   const showEntryCat = state.view === 'rug' || state.view === 'reward';
+  const activeDueReminder = !state.active && state.view === 'rug' ? dueReminder() : null;
+  const activeDueReminderCount = !state.active && state.view === 'rug' ? dueReminderCount() : 0;
+  const dueReminderBadge = activeDueReminderCount ? `<span class="reminder-due-badge" aria-label="${activeDueReminderCount} 个已提醒未完成任务">${activeDueReminderCount > 99 ? '99+' : activeDueReminderCount}</span>` : '';
   const focusControl = state.active
     ? `<div class="timer-setup focus-running"><div class="timer-row"><strong id="countdown" class="running-countdown">${formatTime(state.remaining)}</strong></div><p class="focus-title task-title">${escapeHtml(state.purpose || copy('focus'))}</p></div>`
     : state.view === 'reward'
@@ -825,9 +1202,9 @@ function render() {
       : `<div class="timer-setup"><div class="timer-row"><button class="duration-button" id="editDuration" type="button" aria-label="设置专注时长"><strong>${formatTime(state.duration)}</strong></button><button class="purpose-button" id="editPurpose" type="button" aria-label="填写本次专注内容" title="填写本次专注内容"><img class="note-icon" src="/icons/notebook-pen.svg" alt=""></button></div><p class="focus-title">${escapeHtml(state.purpose || copy('focus'))}</p>${state.editingDuration ? `<form class="inline-editor" id="durationForm"><label>分钟<input id="durationInput" type="number" min="1" max="180" value="${Math.round(state.duration / 60)}" inputmode="numeric" required></label><button type="submit">确定</button></form>` : ''}${state.editingPurpose ? `<form class="inline-editor purpose-editor" id="purposeForm"><input id="purposeInput" type="text" maxlength="24" value="${escapeHtml(state.purpose)}" placeholder="例如：整理今天的方案"><button type="submit">确定</button></form>` : ''}<button class="start-button" id="startFocus" type="button"><span>开始</span></button></div>`;
   app.innerHTML = `<section class="room ${state.active ? 'is-focusing' : ''} ${isCloseView ? 'is-close' : ''}">
     <div class="room-art" aria-hidden="true"></div><div class="focus-art" aria-hidden="true"></div><div class="sun-wash" aria-hidden="true"></div>
-    ${showEntryCat ? '<div class="cat-video-layer" aria-hidden="true"><video class="cat-animation is-active" muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-animation" muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><canvas class="cat-chroma-canvas" id="catChromaCanvas"></canvas></div>' : ''}
+    ${showEntryCat ? `<div class="cat-video-layer" aria-hidden="true"><video class="cat-animation is-active" src="${catActions.idle.source}" autoplay loop muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-animation" muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-chroma-source" id="catChromaSource" playsinline preload="auto"></video><canvas class="cat-chroma-canvas" id="catChromaCanvas"></canvas></div>` : ''}
     <header class="topbar"><button class="top-icon-button shop-top-button" id="openCollection" type="button" aria-label="打开商城，拥有 ${state.fish} 条小鱼干"><img src="/icons/shopping-bag.svg" alt=""><span class="fish-count"><img src="/icons/fish-simple.svg" alt="">x <b>${state.fish}</b></span></button><button class="top-icon-button settings-top-button" id="openSettings" type="button" aria-label="打开系统设置"><img src="/icons/settings.svg" alt=""></button></header>
-    ${!state.active && state.view === 'rug' ? '<button class="stats-button" id="openStats" type="button" aria-label="查看专注统计" title="专注统计"><img src="/icons/paw-chart.svg" alt=""></button><button class="reminders-button" id="openReminders" type="button" aria-label="打开提醒事项" title="提醒事项"><img src="/icons/reminder-list.svg" alt=""></button>' : ''}
+    ${!state.active && state.view === 'rug' ? `<button class="stats-button" id="openStats" type="button" aria-label="查看专注统计" title="专注统计"><img src="/icons/paw-chart.svg" alt=""></button><button class="reminders-button" id="openReminders" type="button" aria-label="${activeDueReminderCount ? `打开提醒事项，${activeDueReminderCount} 个已提醒未完成任务` : '打开提醒事项'}" title="提醒事项"><img src="/icons/reminder-list.svg" alt="">${dueReminderBadge}</button><button class="reminder-bell ${activeReminderReactionId && !reminderBellAcknowledged ? 'is-ringing' : ''}" id="openReminderBell" type="button" aria-label="${activeDueReminder ? `查看到时提醒：${escapeHtml(reminderTitleLabel(activeDueReminder.title))}` : '打开提醒事项'}" title="提醒"><img src="/icons/bell.svg" alt=""></button>` : ''}
     <section class="focus-panel" aria-live="polite">${focusControl}<p class="room-note">${state.note}</p></section>
     ${state.active ? '<div class="finish-slider" id="finishSlider"><div class="finish-track"><span class="finish-track-copy">右滑放弃</span><span class="finish-track-chevron" aria-hidden="true">››</span><input id="finishFocus" type="range" min="0" max="100" value="0" aria-label="向右滑动铃铛提前结束专注"></div></div>' : ''}
     <aside class="collection-drawer" id="collectionDrawer" aria-hidden="true"><div class="drawer-sheet"><div class="drawer-head"><div><p>我的收藏</p><h1>慢慢把房间填满</h1></div><button class="close-button" id="closeCollection" type="button" aria-label="关闭收藏">x</button></div><section class="owned-section"><span class="section-label">已经拥有</span><div class="owned-items"><span>虎斑白猫</span><span>圆地毯</span></div></section><section class="shop-section"><div class="section-title"><span>互动家具</span><small>售价待定</small></div><div class="collection-list">${furniture.map(([name, detail]) => `<article><div class="item-icon">+</div><div><h2>${name}</h2><p>${detail}</p></div><span>家具</span></article>`).join('')}</div></section><section class="shop-section"><div class="section-title"><span>更多猫咪</span><small>售价待定</small></div><div class="collection-list">${cats.map(([name, detail]) => `<article><div class="item-icon">+</div><div><h2>${name}</h2><p>${detail}</p></div><span>外观</span></article>`).join('')}</div></section><p class="drawer-foot">家具会带来新的猫咪日常；具体价格等内容数量确定后再一起调整。</p></div></aside>
@@ -837,8 +1214,16 @@ function render() {
     <div class="reward-toast" id="rewardToast" role="status" aria-live="polite"></div>
   </section>`;
   document.title = state.locale === 'zh-CN' ? '和猫一起坐一会儿' : state.locale === 'ms' ? 'Duduk sebentar bersama si comel' : 'Sit with your cat for a while';
+  const dialogReminder = state.reminders.find(reminder => reminder.id === reminderBellDialogId && !reminder.completed);
+  if (dialogReminder) mountReminderBellDialog(dialogReminder);
+  else reminderBellDialogId = null;
   localizeStaticInterface();
   document.querySelector('#startFocus')?.addEventListener('click', startFocus);
+  document.querySelector('#openReminderBell')?.addEventListener('click', () => {
+    const reminder = state.reminders.find(item => item.id === reminderBellTargetId && !item.completed)
+      || state.reminders.find(item => item.id === activeReminderReactionId && !item.completed);
+    if (reminder) openReminderBellDialog(reminder);
+  });
   document.querySelector('#editDuration')?.addEventListener('click', () => { state.editingDuration = !state.editingDuration; state.editingPurpose = false; render(); });
   document.querySelector('#editPurpose')?.addEventListener('click', () => { state.editingPurpose = !state.editingPurpose; state.editingDuration = false; render(); });
   document.querySelector('#durationForm')?.addEventListener('submit', event => {
@@ -1266,7 +1651,22 @@ function render() {
   }
   document.querySelector('#reminderRepeat')?.addEventListener('change', event => { repeatCustomPanel.hidden = event.target.value !== 'custom'; });
   document.querySelector('#reminderAdvance')?.addEventListener('change', event => { advanceCustomPanel.hidden = event.target.value !== 'custom'; });
-  document.querySelector('#reminderRepeatEnd')?.addEventListener('change', event => { document.querySelector('#reminderRepeatEndDate').hidden = event.target.value !== 'date'; });
+  const repeatEndInput = document.querySelector('#reminderRepeatEndDate');
+  if (repeatEndInput) {
+    attachSharedDatePickerControl({
+      input: repeatEndInput,
+      triggerId: 'openRepeatEndDate',
+      label: state.locale === 'en' ? 'Ends on' : state.locale === 'ms' ? 'Berakhir pada' : '截止日期',
+      fallback: document.querySelector('#reminderDate')?.value ? new Date(`${document.querySelector('#reminderDate').value}T00:00`) : Date.now(),
+      min: document.querySelector('#reminderDate')?.value || ''
+    });
+    const repeatEndAnchor = repeatEndInput.closest('.date-picker-anchor');
+    if (repeatEndAnchor) repeatEndAnchor.hidden = document.querySelector('#reminderRepeatEnd')?.value !== 'date';
+    document.querySelector('#reminderRepeatEnd')?.addEventListener('change', event => {
+      if (repeatEndAnchor) repeatEndAnchor.hidden = event.target.value !== 'date';
+      document.querySelector('#sharedDatePicker')?.remove();
+    });
+  }
   const finishReminder = (reminder, reminderScrollTop) => {
     const restorePosition = () => requestAnimationFrame(() => {
       const sheet = document.querySelector('.reminders-sheet');
@@ -1646,10 +2046,9 @@ function render() {
   }));
   document.querySelector('#statsScrubber')?.addEventListener('input', event => selectStatsChartIndex(Number(event.target.value)));
   document.querySelector('#musicVolume')?.addEventListener('input', event => { state.musicVolume = Number(event.target.value); document.querySelector('#musicVolumeValue').textContent = `${state.musicVolume}%`; save(); });
-  document.querySelector('#catVolume')?.addEventListener('input', event => { state.catVolume = Number(event.target.value); catWakeSound.volume = state.catVolume / 100; document.querySelector('#catVolumeValue').textContent = `${state.catVolume}%`; save(); });
+  document.querySelector('#catVolume')?.addEventListener('input', event => { state.catVolume = Number(event.target.value); catWakeSound.volume = state.catVolume / 100; if (activeChromaVideo) activeChromaVideo.volume = state.catVolume / 100; document.querySelector('#catVolumeValue').textContent = `${state.catVolume}%`; save(); });
   document.querySelector('#languageSelect')?.addEventListener('change', event => { state.locale = event.target.value; save(); render(); openSettings(); });
-  document.querySelector('#ownerName')?.addEventListener('input', event => { state.ownerName = event.target.value.trimStart(); save(); });
-  document.querySelector('#birthday')?.addEventListener('change', event => { state.birthday = event.target.value; save(); });
+  setupProfileControls();
   document.querySelector('#finishFocus')?.addEventListener('input', updateFinishSlider);
   document.querySelector('#finishFocus')?.addEventListener('change', resetFinishSlider);
   if (state.editingDuration || state.editingPurpose) requestAnimationFrame(() => document.querySelector('#durationInput, #purposeInput')?.focus());
@@ -1659,10 +2058,20 @@ function render() {
 function clearCatVideo() {
   clearTimeout(catPauseTimer);
   clearTimeout(catPlaybackTimer);
+  clearTimeout(catChromaSettleTimer);
   cancelAnimationFrame(catChromaFrame);
+  if (catVideoFrameCallback && activeChromaVideo?.cancelVideoFrameCallback) activeChromaVideo.cancelVideoFrameCallback(catVideoFrameCallback);
+  catVideoFrameCallback = undefined;
   activeChromaVideo?.pause();
   activeChromaVideo = undefined;
-  document.querySelector('#catChromaCanvas')?.classList.remove('is-active');
+  const chromaCanvas = document.querySelector('#catChromaCanvas');
+  chromaCanvas?.classList.remove('is-active', 'is-scaled');
+  chromaCanvas?.style.removeProperty('--cat-chroma-scale');
+  chromaCanvas?.style.removeProperty('--cat-chroma-y');
+  document.querySelectorAll('.cat-animation').forEach(video => {
+    video.pause();
+    video.classList.remove('is-active');
+  });
   activeCatPlayback = undefined;
   activeCatSlot = -1;
   stopCatWakeSound();
@@ -1675,45 +2084,115 @@ function clearCatVideo() {
   lobbyIdleRounds = 0;
   catPose = 'sitting';
 }
-function playChromaCatVideo(action, onEnded) {
+function drawRoomArtFrame(context, canvas) {
+  if (!roomArtFrame.complete || !roomArtFrame.naturalWidth) return;
+  const scale = Math.max(canvas.width / roomArtFrame.naturalWidth, canvas.height / roomArtFrame.naturalHeight) * 1.01;
+  const width = roomArtFrame.naturalWidth * scale;
+  const height = roomArtFrame.naturalHeight * scale;
+  context.drawImage(roomArtFrame, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+}
+function playChromaCatVideo(action, onEnded, loop = false) {
   const canvas = document.querySelector('#catChromaCanvas');
   if (!canvas) return onEnded?.();
   const context = canvas.getContext('2d', { willReadFrequently: true });
-  const video = document.createElement('video');
+  const video = document.querySelector('#catChromaSource');
+  if (!video) return onEnded?.();
   activeChromaVideo = video;
-  video.src = action.source;
+  // Reminder reactions start without a user gesture, so the browser only permits video playback when muted.
   video.muted = true;
+  video.volume = state.catVolume / 100;
   video.playsInline = true;
+  let drawFrame;
   video.addEventListener('loadeddata', () => {
     if (activeChromaVideo !== video) return;
-    canvas.width = 480;
-    canvas.height = 270;
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(canvas.clientWidth * pixelRatio);
+    canvas.height = Math.round(canvas.width * canvas.clientHeight / canvas.clientWidth);
     canvas.classList.add('is-active');
-    const drawFrame = () => {
+    video.loop = false;
+    drawFrame = (scheduleNext = true) => {
       if (activeChromaVideo !== video) return;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      if (action.composited) {
+        const scale = Math.max(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
+        const width = video.videoWidth * scale;
+        const height = video.videoHeight * scale;
+        context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+      } else {
+        drawRoomArtFrame(context, canvas);
+      if (action.cropSquare) {
+        const sourceHeight = video.videoHeight;
+        const sourceWidth = Math.min(video.videoWidth, action.cropWidth || sourceHeight);
+        const sourceX = (video.videoWidth - sourceWidth) / 2;
+        const scale = action.scale || 1;
+        const offsetY = Number.parseFloat(action.offsetY || '0') / 100 * canvas.height;
+        const destinationHeight = Math.min(canvas.width, canvas.height) * scale;
+        const destinationWidth = destinationHeight * sourceWidth / sourceHeight;
+        context.drawImage(video, sourceX, 0, sourceWidth, sourceHeight, (canvas.width - destinationWidth) / 2, canvas.height - destinationHeight + offsetY, destinationWidth, destinationHeight);
+      } else {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      }
+      }
+      if (!action.composited) {
       const frame = context.getImageData(0, 0, canvas.width, canvas.height);
       for (let index = 0; index < frame.data.length; index += 4) {
         const red = frame.data[index];
         const green = frame.data[index + 1];
         const blue = frame.data[index + 2];
-        const greenLead = green - Math.max(red, blue);
-        if (green > 78 && greenLead > 18) frame.data[index + 3] = Math.max(0, Math.min(255, (42 - greenLead) * 8));
+        const maximum = Math.max(red, green, blue);
+        const minimum = Math.min(red, green, blue);
+        const difference = maximum - minimum;
+        const saturation = maximum ? difference / maximum : 0;
+        const hue = difference ? 60 * (((red === maximum ? (green - blue) / difference : green === maximum ? 2 + (blue - red) / difference : 4 + (red - green) / difference) + 6) % 6) : 0;
+        if (hue > 85 && hue < 170 && saturation > .07) {
+          frame.data[index + 3] = Math.max(0, Math.min(255, (.5 - saturation) / .43 * 255));
+          frame.data[index + 1] = Math.max(red, blue) + 2;
+        } else if (green > red + 12 && green > blue + 12) {
+          frame.data[index + 1] = Math.max(red, blue) + 2;
+        }
+        const greenEdge = green - Math.max(red, blue);
+        if (green > 76 && greenEdge > 12) {
+          frame.data[index + 3] = Math.min(frame.data[index + 3], Math.max(0, Math.min(255, (42 - greenEdge) * 9)));
+          frame.data[index + 1] = Math.max(red, blue) + 1;
+        }
       }
       context.putImageData(frame, 0, 0);
-      catChromaFrame = requestAnimationFrame(drawFrame);
+      }
+      if (!scheduleNext) return;
+      if (action.composited && video.requestVideoFrameCallback) {
+        catVideoFrameCallback = video.requestVideoFrameCallback(drawFrame);
+      } else {
+        catChromaFrame = requestAnimationFrame(drawFrame);
+      }
     };
     video.play().then(() => playCatWakeSound(action.sound)).catch(() => {});
     drawFrame();
   }, { once: true });
-  video.addEventListener('ended', () => {
+  video.src = action.source;
+  video.load();
+  video.onended = () => {
     if (activeChromaVideo !== video) return;
+    if (loop && !reminderBellAcknowledged) {
+      if (catVideoFrameCallback && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(catVideoFrameCallback);
+      catVideoFrameCallback = undefined;
+      video.currentTime = 0;
+      video.play().then(() => {
+        playCatWakeSound(action.sound);
+        drawFrame?.();
+      }).catch(() => {});
+      return;
+    }
     cancelAnimationFrame(catChromaFrame);
-    canvas.classList.remove('is-active');
+    if (catVideoFrameCallback && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(catVideoFrameCallback);
+    catVideoFrameCallback = undefined;
+    drawFrame?.(false);
     activeChromaVideo = undefined;
     stopCatWakeSound();
-    onEnded?.();
-  }, { once: true });
+    catChromaSettleTimer = setTimeout(() => {
+      canvas.classList.remove('is-active');
+      onEnded?.();
+    }, action.composited ? 480 : 0);
+  };
 }
 function playCatVideo(source, onEnded, loop = false) {
   clearTimeout(catPlaybackTimer);
@@ -2025,4 +2504,12 @@ if (state.active && state.endsAt) {
   render();
 }
 initializeReminderNotifications();
-document.addEventListener('visibilitychange', () => { if (!document.hidden) syncFocusClock(); });
+syncDueReminderBell();
+setInterval(syncDueReminderBell, 1000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    syncFocusClock();
+    syncDueReminderBell();
+  }
+});
+document.addEventListener('pointerdown', primeCatAudio, { once: true, capture: true });
