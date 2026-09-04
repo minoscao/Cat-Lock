@@ -93,7 +93,7 @@
   height: 100%;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .18s ease;
+  transition: opacity .32s ease-out;
 }
 
 .cat-chroma-canvas.is-active {
@@ -2969,6 +2969,116 @@ html[data-locale="zh-CN"] .bell-reminder-dialog h2 {
 .stats-scrubber-line {
   stroke: rgba(64, 106, 67, .38);
   stroke-width: 1;
+}
+
+.focus-settlement-backdrop {
+  position: absolute;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(47, 42, 30, .24);
+  backdrop-filter: blur(2px);
+}
+
+.focus-settlement-card {
+  position: relative;
+  width: min(372px, 100%);
+  aspect-ratio: 4 / 3;
+  min-height: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 14px 22px rgba(52, 43, 27, .24));
+}
+
+.focus-settlement-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: .96;
+}
+
+.focus-settlement-content {
+  position: absolute;
+  z-index: 1;
+  inset: 31px 33px 31px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.focus-settlement-card h2 {
+  position: relative;
+  z-index: 1;
+  margin: 66px auto 0;
+  color: #456342;
+  font: 400 21px/1.5 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+}
+
+.focus-settlement-card.is-complete h2 {
+  margin-top: 42px;
+}
+
+.focus-settlement-gift {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 12px 0 14px;
+  color: #745f38;
+  font: 400 18px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+}
+
+.focus-settlement-gift img {
+  width: 25px;
+  height: 25px;
+}
+
+.focus-settlement-fish-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #745f38;
+}
+
+.focus-settlement-card button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 142px;
+  min-height: 42px;
+  margin-top: auto;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #66845f;
+  box-shadow: 0 4px 0 #4e6a49;
+  color: #fffdf6;
+  font: 400 15px/1 "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif;
+  cursor: pointer;
+}
+
+.focus-settlement-card button:active {
+  box-shadow: 0 1px 0 #4e6a49;
+  transform: translateY(3px);
+}
+
+.focus-settlement-card button img {
+  width: 15px;
+  height: 15px;
+  filter: brightness(0) invert(1);
 }
 
 @media (max-width: 720px) and (orientation: portrait) {

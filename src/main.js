@@ -14,27 +14,31 @@ const COPY = {
     profile: '你的小档案', nickname: '昵称', nicknamePlaceholder: '猫咪怎么称呼你？', birthday: '生日', birthdayHint: '生日惊喜会在以后慢慢出现。',
     settingsHint: '语言、音量和小档案都会保存在这台设备上。', reminder: '提醒事项', focus: '专注', minutes: '分钟', today: '今天', tomorrow: '明天', yesterday: '昨天', beforeYesterday: '前天', afterTomorrow: '后天',
     hourly: '每小时', daily: '每天', weekly: '每周', monthly: '每月', weekdays: '工作日', weekends: '周末', biweekly: '每两周', quarterly: '每 3 个月', semiannual: '每 6 个月',
-    completedAt: '完成时间：', notify: '提醒事项', nicknameFallback: '主人'
+    completedAt: '完成时间：', notify: '提醒事项', nicknameFallback: '主人',
+    settlementComplete: '哇，太棒啦！{cat}陪{owner}完成了任务，干得漂亮喵~', settlementEarly: '{owner}，{cat}陪你先休息一下也没关系，下次我们一定能一起坚持到最后喵~', settlementGift: '送你', settlementReceive: '开心收下', settlementContinue: '下次继续'
   },
   en: {
     settings: 'Settings', language: 'Language', music: 'Background music', catSound: 'Cat sounds',
     profile: 'About you', nickname: 'Nickname', nicknamePlaceholder: 'What should kitty call you?', birthday: 'Birthday', birthdayHint: 'Birthday surprises will arrive in a future update.',
     settingsHint: 'Language, sound, and profile details stay on this device.', reminder: 'Reminder', focus: 'Focus', minutes: 'min', today: 'Today', tomorrow: 'Tomorrow', yesterday: 'Yesterday', beforeYesterday: 'Two days ago', afterTomorrow: 'The day after tomorrow',
     hourly: 'Every hour', daily: 'Every day', weekly: 'Every week', monthly: 'Every month', weekdays: 'Weekdays', weekends: 'Weekends', biweekly: 'Every two weeks', quarterly: 'Every 3 months', semiannual: 'Every 6 months',
-    completedAt: 'Completed: ', notify: 'Reminder', nicknameFallback: 'friend'
+    completedAt: 'Completed: ', notify: 'Reminder', nicknameFallback: 'friend',
+    settlementComplete: 'Wow, amazing! {cat} helped {owner} finish the task. Great job, meow~', settlementEarly: 'It is okay to rest a while, {owner}. {cat} will be here with you. We will make it to the end together next time, meow~', settlementGift: 'A gift for you', settlementReceive: 'Gladly accept', settlementContinue: 'Keep going'
   },
   ms: {
     settings: 'Tetapan', language: 'Bahasa', music: 'Muzik latar', catSound: 'Suara si comel',
     profile: 'Tentang awak', nickname: 'Nama panggilan', nicknamePlaceholder: 'Si comel patut panggil awak apa?', birthday: 'Hari jadi', birthdayHint: 'Kejutan hari jadi akan hadir dalam kemas kini akan datang.',
     settingsHint: 'Bahasa, bunyi dan maklumat peribadi disimpan pada peranti ini.', reminder: 'Peringatan', focus: 'Fokus', minutes: 'min', today: 'Hari ini', tomorrow: 'Esok', yesterday: 'Semalam', beforeYesterday: 'Dua hari lepas', afterTomorrow: 'Lusa',
     hourly: 'Setiap jam', daily: 'Setiap hari', weekly: 'Setiap minggu', monthly: 'Setiap bulan', weekdays: 'Hari bekerja', weekends: 'Hujung minggu', biweekly: 'Setiap dua minggu', quarterly: 'Setiap 3 bulan', semiannual: 'Setiap 6 bulan',
-    completedAt: 'Selesai: ', notify: 'Peringatan', nicknameFallback: 'kawan'
+    completedAt: 'Selesai: ', notify: 'Peringatan', nicknameFallback: 'kawan',
+    settlementComplete: 'Wah, hebatnya! {cat} menemani {owner} menyiapkan tugasan. Hebat, meow~', settlementEarly: 'Tidak mengapa untuk berehat dulu, {owner}. {cat} akan menemani awak. Lain kali kita akan sampai ke penghujung bersama, meow~', settlementGift: 'Hadiah untuk awak', settlementReceive: 'Terima dengan gembira', settlementContinue: 'Teruskan lagi'
   }
 };
 function copy(key) { return COPY[state.locale]?.[key] || COPY['zh-CN'][key] || key; }
 function localeTag() { return LANGUAGE_META[state.locale]?.tag || 'zh-CN'; }
 function ownerName() { return state.ownerName?.trim() || copy('nicknameFallback'); }
 function catName() { return state.catName?.trim() || (state.locale === 'en' ? 'Kitty' : state.locale === 'ms' ? 'Si comel' : '咪咪'); }
+function settlementCopy(key) { return copy(key).replace('{owner}', escapeHtml(ownerName())).replace('{cat}', escapeHtml(catName())); }
 function catReminderCopy(title) {
   if (state.locale === 'en') return `Hey ${ownerName()}, kitty says it is time for ${title}.`;
   if (state.locale === 'ms') return `${ownerName()}, si comel kata sudah tiba masa untuk: ${title}.`;
@@ -244,7 +248,7 @@ const app = document.querySelector('#app');
 const roomArtFrame = new Image();
 roomArtFrame.src = '/images/cat-room/sofa-rug-focus-figure-layout-controls-v1.png';
 let ticker;
-let visibleDueReminderId = null;
+let visibleDueReminderKey = null;
 let catPauseTimer;
 let catPlaybackTimer;
 let activeCatPlayback;
@@ -263,11 +267,13 @@ let activeReminderReactionId = null;
 let reminderBellTargetId = null;
 let reminderBellAcknowledged = false;
 let reminderBellDialogId = null;
+let reminderReactionStopTimer;
 let catChromaFrame;
 let catVideoFrameCallback;
 let catChromaSettleTimer;
 let activeChromaVideo;
 let catAudioPrimed = false;
+let focusSettlement = null;
 
 function localNotifications() { return window.Capacitor?.Plugins?.LocalNotifications; }
 function urgentAlarm() { return window.Capacitor?.Plugins?.UrgentAlarm; }
@@ -281,6 +287,23 @@ function dueReminder() {
 }
 function dueReminderCount() {
   return state.reminders.filter(reminder => !reminder.completed && reminderNotificationAt(reminder) <= Date.now()).length;
+}
+function refreshDueReminderBadge() {
+  const button = document.querySelector('#openReminders');
+  if (!button) return;
+  const count = dueReminderCount();
+  const badge = button.querySelector('.reminder-due-badge');
+  button.setAttribute('aria-label', count ? `打开提醒事项，${count} 个已提醒未完成任务` : '打开提醒事项');
+  if (!count) {
+    badge?.remove();
+    return;
+  }
+  if (badge) {
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.setAttribute('aria-label', `${count} 个已提醒未完成任务`);
+    return;
+  }
+  button.insertAdjacentHTML('beforeend', `<span class="reminder-due-badge" aria-label="${count} 个已提醒未完成任务">${count > 99 ? '99+' : count}</span>`);
 }
 function nextReminderAlertAt(reminder) {
   const lastTriggeredAt = Number(state.reminderLastTriggeredAt?.[reminder.id]);
@@ -300,10 +323,11 @@ function nextReminderAlert() {
 }
 function syncDueReminderBell() {
   if (reminderReactionPlaying) return;
-  const nextDueReminderId = !state.active && state.view === 'rug' ? nextReminderAlert()?.reminder.id || null : null;
-  if (nextDueReminderId === visibleDueReminderId) return;
-  visibleDueReminderId = nextDueReminderId;
-  if (nextDueReminderId) playReminderReaction(nextDueReminderId);
+  const nextAlert = !state.active && state.view === 'rug' ? nextReminderAlert() : null;
+  const nextDueReminderKey = nextAlert ? `${nextAlert.reminder.id}:${nextAlert.at}` : null;
+  if (nextDueReminderKey === visibleDueReminderKey) return;
+  visibleDueReminderKey = nextDueReminderKey;
+  if (nextAlert) playReminderReaction(nextAlert.reminder.id);
   else render();
 }
 function reminderSchedule(reminder) {
@@ -408,19 +432,46 @@ function playReminderReaction(reminderId) {
   requestAnimationFrame(() => {
     if (activeReminderReactionId !== reminderId) return;
     playChromaCatVideo(catActions.pawScratch, () => {
-      activeReminderReactionId = null;
-      reminderReactionPlaying = false;
-      state.note = '它又在地毯上安静等着你了。';
-      render();
+      finishReminderReaction(reminderId);
     }, true);
   });
 }
+function finishReminderReaction(reminderId) {
+  if (activeReminderReactionId !== reminderId) return;
+  clearTimeout(reminderReactionStopTimer);
+  reminderReactionStopTimer = undefined;
+  activeReminderReactionId = null;
+  reminderReactionPlaying = false;
+  state.note = '它又在地毯上安静等着你了。';
+  render();
+}
 function acknowledgeReminderBell() {
   if (!activeReminderReactionId) return;
+  const reminderId = activeReminderReactionId;
   reminderBellAcknowledged = true;
   if (activeChromaVideo) activeChromaVideo.loop = false;
   catWakeSound.loop = false;
   document.querySelector('#openReminderBell')?.classList.remove('is-ringing');
+  const video = activeChromaVideo;
+  const remainingMs = Number.isFinite(video?.duration)
+    ? Math.max(0, (video.duration - video.currentTime) * 1000)
+    : catActions.pawScratch.duration;
+  clearTimeout(reminderReactionStopTimer);
+  reminderReactionStopTimer = setTimeout(() => {
+    if (activeReminderReactionId !== reminderId || !reminderBellAcknowledged) return;
+    clearCatVideo();
+    finishReminderReaction(reminderId);
+  }, Math.max(remainingMs + 160, 500));
+}
+function acknowledgeCompletedReminder(reminderId) {
+  if (activeReminderReactionId !== reminderId) return;
+  acknowledgeReminderBell();
+}
+function showReminderCompletionPending(reminderId) {
+  const check = document.querySelector(`[data-reminder-toggle="${reminderId}"]`);
+  const item = check?.closest('.reminder-item');
+  item?.classList.add('is-complete', 'is-completing');
+  if (check) check.textContent = '✓';
 }
 function completeReminderFromBell(reminder) {
   reminderBellTargetId = null;
@@ -470,6 +521,7 @@ function mountReminderBellDialog(reminder) {
     completeReminderFromBell(reminder);
     reminderBellDialogId = null;
     dialog.remove();
+    refreshDueReminderBadge();
   });
 }
 function initializeReminderNotifications() {
@@ -1186,10 +1238,22 @@ function renderReminderDrawer() {
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, focusRecords: state.focusRecords, reminders: state.reminders, completedSubtasks: state.completedSubtasks, reminderLastTriggeredAt: state.reminderLastTriggeredAt, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume, locale: state.locale, ownerName: state.ownerName, ownerNameLocked: state.ownerNameLocked, catName: state.catName, catNameLocked: state.catNameLocked, birthday: state.birthday, birthdayUpdatedAt: state.birthdayUpdatedAt })); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
+function renderFocusSettlement() {
+  if (state.view !== 'reward' || !focusSettlement) return '';
+  const complete = focusSettlement.kind === 'complete';
+  const message = settlementCopy(complete ? 'settlementComplete' : 'settlementEarly');
+  const button = copy(complete ? 'settlementReceive' : 'settlementContinue');
+  return `<section class="focus-settlement-backdrop" role="dialog" aria-modal="true" aria-labelledby="focusSettlementTitle"><div class="focus-settlement-card ${complete ? 'is-complete' : 'is-early'}"><img class="focus-settlement-art" src="/images/settlement/focus-reward-card-final.png" alt=""><div class="focus-settlement-content"><h2 id="focusSettlementTitle">${message}</h2>${complete ? `<p class="focus-settlement-gift"><span>${copy('settlementGift')}</span><span class="focus-settlement-fish-count"><img src="/icons/fish-simple.svg" alt="${state.locale === 'zh-CN' ? '小鱼干' : state.locale === 'ms' ? 'snek ikan' : 'fish treat'}"><span>×1</span></span></p>` : ''}<button id="confirmFocusSettlement" type="button">${button}<img src="/icons/paw-print.svg" alt=""></button></div></div></section>`;
+}
 
 function render() {
   document.documentElement.lang = localeTag();
   document.documentElement.dataset.locale = state.locale;
+  // List views can rerender freely without resetting the in-progress reminder clip.
+  const preservedReminderCatLayer = activeReminderReactionId && reminderReactionPlaying
+    ? document.querySelector('.cat-video-layer')
+    : null;
+  preservedReminderCatLayer?.remove();
   const isCloseView = state.view === 'rug' || state.view === 'reward';
   const showEntryCat = state.view === 'rug' || state.view === 'reward';
   const activeDueReminder = !state.active && state.view === 'rug' ? dueReminder() : null;
@@ -1198,7 +1262,7 @@ function render() {
   const focusControl = state.active
     ? `<div class="timer-setup focus-running"><div class="timer-row"><strong id="countdown" class="running-countdown">${formatTime(state.remaining)}</strong></div><p class="focus-title task-title">${escapeHtml(state.purpose || copy('focus'))}</p></div>`
     : state.view === 'reward'
-      ? `<div class="reward-state"><p>这段时间，你做得很好。</p><strong>小鱼干 +1</strong></div>`
+      ? '<div class="reward-state" aria-hidden="true"></div>'
       : `<div class="timer-setup"><div class="timer-row"><button class="duration-button" id="editDuration" type="button" aria-label="设置专注时长"><strong>${formatTime(state.duration)}</strong></button><button class="purpose-button" id="editPurpose" type="button" aria-label="填写本次专注内容" title="填写本次专注内容"><img class="note-icon" src="/icons/notebook-pen.svg" alt=""></button></div><p class="focus-title">${escapeHtml(state.purpose || copy('focus'))}</p>${state.editingDuration ? `<form class="inline-editor" id="durationForm"><label>分钟<input id="durationInput" type="number" min="1" max="180" value="${Math.round(state.duration / 60)}" inputmode="numeric" required></label><button type="submit">确定</button></form>` : ''}${state.editingPurpose ? `<form class="inline-editor purpose-editor" id="purposeForm"><input id="purposeInput" type="text" maxlength="24" value="${escapeHtml(state.purpose)}" placeholder="例如：整理今天的方案"><button type="submit">确定</button></form>` : ''}<button class="start-button" id="startFocus" type="button"><span>开始</span></button></div>`;
   app.innerHTML = `<section class="room ${state.active ? 'is-focusing' : ''} ${isCloseView ? 'is-close' : ''}">
     <div class="room-art" aria-hidden="true"></div><div class="focus-art" aria-hidden="true"></div><div class="sun-wash" aria-hidden="true"></div>
@@ -1207,21 +1271,33 @@ function render() {
     ${!state.active && state.view === 'rug' ? `<button class="stats-button" id="openStats" type="button" aria-label="查看专注统计" title="专注统计"><img src="/icons/paw-chart.svg" alt=""></button><button class="reminders-button" id="openReminders" type="button" aria-label="${activeDueReminderCount ? `打开提醒事项，${activeDueReminderCount} 个已提醒未完成任务` : '打开提醒事项'}" title="提醒事项"><img src="/icons/reminder-list.svg" alt="">${dueReminderBadge}</button><button class="reminder-bell ${activeReminderReactionId && !reminderBellAcknowledged ? 'is-ringing' : ''}" id="openReminderBell" type="button" aria-label="${activeDueReminder ? `查看到时提醒：${escapeHtml(reminderTitleLabel(activeDueReminder.title))}` : '打开提醒事项'}" title="提醒"><img src="/icons/bell.svg" alt=""></button>` : ''}
     <section class="focus-panel" aria-live="polite">${focusControl}<p class="room-note">${state.note}</p></section>
     ${state.active ? '<div class="finish-slider" id="finishSlider"><div class="finish-track"><span class="finish-track-copy">右滑放弃</span><span class="finish-track-chevron" aria-hidden="true">››</span><input id="finishFocus" type="range" min="0" max="100" value="0" aria-label="向右滑动铃铛提前结束专注"></div></div>' : ''}
+    ${renderFocusSettlement()}
     <aside class="collection-drawer" id="collectionDrawer" aria-hidden="true"><div class="drawer-sheet"><div class="drawer-head"><div><p>我的收藏</p><h1>慢慢把房间填满</h1></div><button class="close-button" id="closeCollection" type="button" aria-label="关闭收藏">x</button></div><section class="owned-section"><span class="section-label">已经拥有</span><div class="owned-items"><span>虎斑白猫</span><span>圆地毯</span></div></section><section class="shop-section"><div class="section-title"><span>互动家具</span><small>售价待定</small></div><div class="collection-list">${furniture.map(([name, detail]) => `<article><div class="item-icon">+</div><div><h2>${name}</h2><p>${detail}</p></div><span>家具</span></article>`).join('')}</div></section><section class="shop-section"><div class="section-title"><span>更多猫咪</span><small>售价待定</small></div><div class="collection-list">${cats.map(([name, detail]) => `<article><div class="item-icon">+</div><div><h2>${name}</h2><p>${detail}</p></div><span>外观</span></article>`).join('')}</div></section><p class="drawer-foot">家具会带来新的猫咪日常；具体价格等内容数量确定后再一起调整。</p></div></aside>
     <aside class="settings-drawer ${state.settingsOpen ? 'open' : ''}" id="settingsDrawer" aria-hidden="${state.settingsOpen ? 'false' : 'true'}"><section class="settings-sheet" aria-label="${copy('settings')}"><header class="settings-head"><div><p>${copy('settings')}</p></div><button class="close-button" id="closeSettings" type="button" aria-label="Close settings">x</button></header><section class="settings-section"><label class="settings-select" for="languageSelect"><span>${copy('language')}</span><select id="languageSelect"><option value="zh-CN" ${state.locale === 'zh-CN' ? 'selected' : ''}>中文</option><option value="en" ${state.locale === 'en' ? 'selected' : ''}>English</option><option value="ms" ${state.locale === 'ms' ? 'selected' : ''}>Bahasa Melayu</option></select></label><div class="sound-setting"><div><label for="musicVolume">${copy('music')}</label><output id="musicVolumeValue">${state.musicVolume}%</output></div><input id="musicVolume" type="range" min="0" max="100" value="${state.musicVolume}" aria-label="${copy('music')}"></div><div class="sound-setting"><div><label for="catVolume">${copy('catSound')}</label><output id="catVolumeValue">${state.catVolume}%</output></div><input id="catVolume" type="range" min="0" max="100" value="${state.catVolume}" aria-label="${copy('catSound')}"></div></section><section class="settings-section profile-section"><h2>${copy('profile')}</h2><label class="settings-profile-field" for="ownerName"><span>${copy('nickname')}</span><input id="ownerName" type="text" maxlength="24" value="${escapeHtml(state.ownerName)}"></label><label class="settings-profile-field" for="birthday"><span>${copy('birthday')}</span><input id="birthday" type="text" inputmode="numeric" maxlength="10" value="${escapeHtml(state.birthday)}" placeholder="YYYY-MM-DD"></label><p class="settings-hint">${copy('birthdayHint')}</p></section></aside>
     ${renderReminderDrawer()}
     ${renderStatsDrawer()}
     <div class="reward-toast" id="rewardToast" role="status" aria-live="polite"></div>
   </section>`;
+  if (preservedReminderCatLayer && showEntryCat) {
+    app.querySelector('.cat-video-layer')?.replaceWith(preservedReminderCatLayer);
+    activeChromaVideo?.play().catch(() => {});
+  }
   document.title = state.locale === 'zh-CN' ? '和猫一起坐一会儿' : state.locale === 'ms' ? 'Duduk sebentar bersama si comel' : 'Sit with your cat for a while';
   const dialogReminder = state.reminders.find(reminder => reminder.id === reminderBellDialogId && !reminder.completed);
   if (dialogReminder) mountReminderBellDialog(dialogReminder);
   else reminderBellDialogId = null;
   localizeStaticInterface();
   document.querySelector('#startFocus')?.addEventListener('click', startFocus);
+  document.querySelector('#confirmFocusSettlement')?.addEventListener('click', () => {
+    focusSettlement = null;
+    state.view = 'rug';
+    state.note = '它又在地毯上安静等着你了。';
+    render();
+  });
   document.querySelector('#openReminderBell')?.addEventListener('click', () => {
     const reminder = state.reminders.find(item => item.id === reminderBellTargetId && !item.completed)
-      || state.reminders.find(item => item.id === activeReminderReactionId && !item.completed);
+      || state.reminders.find(item => item.id === activeReminderReactionId && !item.completed)
+      || dueReminder();
     if (reminder) openReminderBellDialog(reminder);
   });
   document.querySelector('#editDuration')?.addEventListener('click', () => { state.editingDuration = !state.editingDuration; state.editingPurpose = false; render(); });
@@ -1250,7 +1326,13 @@ function render() {
   document.querySelector('#openReminders')?.addEventListener('click', openReminders);
   document.querySelector('#closeReminders')?.addEventListener('click', closeReminders);
   document.querySelector('#remindersDrawer')?.addEventListener('click', event => { if (event.target === event.currentTarget) closeReminders(); });
-  document.querySelectorAll('[data-reminder-filter]').forEach(button => button.addEventListener('click', () => { state.completedClearOpen = false; state.reminderSwipeId = null; state.reminderView = button.dataset.reminderFilter; render(); openReminders(); }));
+  document.querySelectorAll('[data-reminder-filter]').forEach(button => button.addEventListener('click', () => {
+    state.completedClearOpen = false;
+    state.reminderSwipeId = null;
+    state.reminderView = button.dataset.reminderFilter;
+    render();
+    openReminders();
+  }));
   document.querySelector('#backToReminderOverview')?.addEventListener('click', () => {
     state.completedClearOpen = false;
     const sourceView = state.reminderSubtaskSourceView;
@@ -1674,9 +1756,15 @@ function render() {
     });
     reminder.completing = true;
     cancelReminderNotification(reminder);
-    render();
-    openReminders();
-    restorePosition();
+    // Completing is the only list action that may end an active reminder reaction.
+    const stopsActiveReaction = activeReminderReactionId === reminder.id;
+    acknowledgeCompletedReminder(reminder.id);
+    if (stopsActiveReaction) showReminderCompletionPending(reminder.id);
+    if (!stopsActiveReaction) {
+      render();
+      openReminders();
+      restorePosition();
+    }
     reminder.completionTimer = setTimeout(() => {
       delete reminder.completionTimer;
       const nextAt = nextReminderOccurrence(reminder);
@@ -1717,9 +1805,11 @@ function render() {
         void scheduleReminderNotification(nextReminder);
       }
       save();
-      render();
-      openReminders();
-      restorePosition();
+      if (!stopsActiveReaction) {
+        render();
+        openReminders();
+        restorePosition();
+      }
     }, 3000);
   };
   const confirmReminderCompletion = (reminder, reminderScrollTop) => {
@@ -2059,6 +2149,8 @@ function clearCatVideo() {
   clearTimeout(catPauseTimer);
   clearTimeout(catPlaybackTimer);
   clearTimeout(catChromaSettleTimer);
+  clearTimeout(reminderReactionStopTimer);
+  reminderReactionStopTimer = undefined;
   cancelAnimationFrame(catChromaFrame);
   if (catVideoFrameCallback && activeChromaVideo?.cancelVideoFrameCallback) activeChromaVideo.cancelVideoFrameCallback(catVideoFrameCallback);
   catVideoFrameCallback = undefined;
@@ -2188,10 +2280,21 @@ function playChromaCatVideo(action, onEnded, loop = false) {
     drawFrame?.(false);
     activeChromaVideo = undefined;
     stopCatWakeSound();
-    catChromaSettleTimer = setTimeout(() => {
-      canvas.classList.remove('is-active');
-      onEnded?.();
-    }, action.composited ? 480 : 0);
+    if (action.composited) {
+      // Hold the final paw frame over the idle loop so differently cut source clips never hard-cut.
+      const idleVideo = document.querySelector('.cat-animation');
+      if (idleVideo) {
+        idleVideo.loop = true;
+        idleVideo.currentTime = 0;
+        idleVideo.classList.add('is-active');
+        idleVideo.play().catch(() => {});
+      }
+      requestAnimationFrame(() => canvas.classList.remove('is-active'));
+      catChromaSettleTimer = setTimeout(() => onEnded?.(), 340);
+      return;
+    }
+    canvas.classList.remove('is-active');
+    onEnded?.();
   };
 }
 function playCatVideo(source, onEnded, loop = false) {
@@ -2212,8 +2315,9 @@ function playCatVideo(source, onEnded, loop = false) {
     currentVideo?.classList.remove('is-active');
     nextVideo.classList.add('is-active');
     activeCatSlot = nextSlot;
-    if (action?.sound) playCatWakeSound(action.sound);
-    nextVideo.play().catch(() => {});
+    nextVideo.play().then(() => {
+      if (action?.sound) playCatWakeSound(action.sound);
+    }).catch(() => {});
     if (!loop) {
       catPlaybackTimer = setTimeout(() => {
         if (activeCatPlayback !== playbackId) return;
@@ -2463,13 +2567,14 @@ function finishFocusEarly() {
   cancelFocusEndNotification();
   state.active = false;
   state.endsAt = null;
-  state.view = 'rug';
+  state.view = 'reward';
   state.remaining = state.duration;
-  state.note = '铃铛轻轻响了一声，它会在这里等你下次回来。';
+  state.note = '它轻轻碰了碰你的手，想和你说句话。';
+  focusSettlement = { kind: 'early' };
   save();
   render();
 }
-function completeFocus() { clearInterval(ticker); clearCatVideo(); releaseFocusLock(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; state.fish += 1; state.focusRecords.unshift({ completedAt: Date.now(), duration: state.duration, purpose: state.purpose }); state.focusRecords = state.focusRecords.slice(0, 2000); state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; save(); render(); setTimeout(() => { state.view = 'rug'; render(); }, 3600); }
+function completeFocus() { clearInterval(ticker); clearCatVideo(); releaseFocusLock(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; state.fish += 1; state.focusRecords.unshift({ completedAt: Date.now(), duration: state.duration, purpose: state.purpose }); state.focusRecords = state.focusRecords.slice(0, 2000); state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; focusSettlement = { kind: 'complete' }; save(); render(); }
 function openCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.add('open'); d.setAttribute('aria-hidden', 'false'); }
 function closeCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.remove('open'); d.setAttribute('aria-hidden', 'true'); }
 function openSettings() {
