@@ -36,7 +36,7 @@ There is no consecutive-use limit on manual scratching.
 
 Five uninterrupted minutes without user operation moves the cat from the awake scheduler into sleep. This timer runs in the lobby and during focus. Every lobby operation resets the five-minute window. In the lobby, the first operation on a sleeping cat wakes it immediately and starts a fresh awake window. A focus session stays in its fullscreen focus mode: its only control is the swipe-to-end affordance, and all other touches do not count as user operation or reset the timer. Forcing focus to end wakes a sleeping cat immediately.
 
-While asleep, the cat uses a card-based sleep cycle rather than the previous elapsed-focus branch. At each completed sleep interval, the scheduler chooses only from currently available sleep assets:
+While asleep, the cat uses a card-based sleep cycle rather than the previous elapsed-focus branch. It completes six full sleep-loop clips (about 30.5 seconds), holds the finished frame for 240 milliseconds, and only then draws the next sleep card. The scheduler chooses only from currently available sleep assets:
 
 - Continue curled sleep: the remaining probability.
 - Wake: starts at 1% and gains 1 percentage point after each continued curled-sleep draw.
