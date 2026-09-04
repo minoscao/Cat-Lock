@@ -34,7 +34,7 @@ There is no consecutive-use limit on manual scratching.
 
 ## Inactivity And Sleep Cards
 
-Five uninterrupted minutes without user operation moves the cat from the awake scheduler into sleep. This timer runs in the lobby and during focus. Every lobby operation resets the five-minute window. In the lobby, the first operation on a sleeping cat wakes it immediately and starts a fresh awake window. A focus session cannot expose direct interaction controls; forcing it to end wakes a sleeping cat immediately.
+Five uninterrupted minutes without user operation moves the cat from the awake scheduler into sleep. This timer runs in the lobby and during focus. Every lobby operation resets the five-minute window. In the lobby, the first operation on a sleeping cat wakes it immediately and starts a fresh awake window. A focus session stays in its fullscreen focus mode: its only control is the swipe-to-end affordance, and all other touches do not count as user operation or reset the timer. Forcing focus to end wakes a sleeping cat immediately.
 
 While asleep, the cat uses a card-based sleep cycle rather than the previous elapsed-focus branch. At each completed sleep interval, the scheduler chooses only from currently available sleep assets:
 
