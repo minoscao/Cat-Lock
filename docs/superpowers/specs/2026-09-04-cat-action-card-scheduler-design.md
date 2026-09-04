@@ -34,15 +34,15 @@ There is no consecutive-use limit on manual scratching.
 
 ## Inactivity And Sleep Cards
 
-Five uninterrupted minutes without direct interaction moves the cat from the awake scheduler into sleep. This timer runs in the lobby and during focus. A user interaction resets the timer and returns the cat to the awake scheduler after its follow-up card.
+Five uninterrupted minutes without user operation moves the cat from the awake scheduler into sleep. This timer runs in the lobby and during focus. Every lobby operation resets the five-minute window. In the lobby, the first operation on a sleeping cat wakes it immediately and starts a fresh awake window. A focus session cannot expose direct interaction controls; forcing it to end wakes a sleeping cat immediately.
 
 While asleep, the cat uses a card-based sleep cycle rather than the previous elapsed-focus branch. At each completed sleep interval, the scheduler chooses only from currently available sleep assets:
 
-- Continue curled sleep.
-- Turn over into the belly-sleep loop.
-- Wake and return to the awake scheduler.
+- Continue curled sleep: the remaining probability.
+- Wake: starts at 1% and gains 1 percentage point after each continued curled-sleep draw.
+- Turn over into the belly-sleep loop: starts at 0.4% and gains 0.4 percentage points after each continued curled-sleep draw.
 
-The precise weighting remains conservative: continuing to sleep is the normal outcome; turning over and waking are less frequent. Focus completion and early finish retain their required wake-up transitions.
+In the belly-sleep pool, continuing to sleep is the remaining probability. Returning to curled sleep starts at 9% and gains 1.4 percentage points after each continued belly-sleep draw. Waking starts at 10% and gains 1.5 percentage points after each continued belly-sleep draw. Returning to curled sleep resets the curled-sleep pool. Focus completion and early finish retain their required wake-up transitions.
 
 ## Priority Order
 
