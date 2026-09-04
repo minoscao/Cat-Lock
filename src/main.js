@@ -2533,7 +2533,7 @@ function playChromaCatVideo(action, onEnded, loop = false, shouldLoop = () => !r
     onEnded?.();
   };
 }
-function playCatVideo(source, onEnded, loop = false) {
+function playCatVideo(source, onEnded, loop = false, playSound = true) {
   clearTimeout(catPlaybackTimer);
   const videos = [...document.querySelectorAll('.cat-animation')];
   if (!videos.length) return;
@@ -2559,7 +2559,7 @@ function playCatVideo(source, onEnded, loop = false) {
     nextVideo.classList.add('is-active');
     activeCatSlot = nextSlot;
     nextVideo.play().then(() => {
-      if (action?.sound) playCatWakeSound(action.sound);
+      if (playSound && action?.sound) playCatWakeSound(action.sound);
     }).catch(() => {});
     if (!loop) {
       catPlaybackTimer = setTimeout(() => {
@@ -2647,8 +2647,8 @@ function beginSleep() {
   });
 }
 function drawSleepCard() {
-  if (finishRequested) return wakeFromSleep(() => completeFocus());
-  if (earlyFinishRequested) return wakeFromSleep(() => finishFocusEarly());
+  if (finishRequested) return wakeFromSleep(() => completeFocus(false), true);
+  if (earlyFinishRequested) return wakeFromSleep(() => finishFocusEarly(false), true);
   if (catPose === 'sleeping') {
     const draw = Math.random();
     if (draw < proneWakeChance) return wakeFromSleep(resumeAwakeCards);
@@ -2688,11 +2688,13 @@ function drawSleepCard() {
   playBellySleepLoop();
 }
 function resumeAwakeCards() {
+  if (earlyFinishRequested) return finishFocusEarly();
+  if (finishRequested) return completeFocus();
   resetAwakeWindow();
   catPose = 'sitting';
   playAwakeIdleLoop();
 }
-function wakeFromSleep(onAwake) {
+function wakeFromSleep(onAwake, playSound = false) {
   if (!isSleepingPose()) return onAwake?.();
   clearTimeout(catSleepDrawTimer);
   const wakingFromBelly = ['rolling-over', 'belly-sleeping', 'returning-to-prone'].includes(catPose);
@@ -2700,7 +2702,7 @@ function wakeFromSleep(onAwake) {
   playCatVideo(wakingFromBelly ? catActions.bellyWake.source : catActions.wake.source, () => {
     if (!['waking', 'belly-waking'].includes(catPose)) return;
     onAwake?.();
-  });
+  }, false, playSound);
 }
 function startLobbySequence() {
   if (state.active || !catSceneIsAvailable() || activeCatInteraction) return;
@@ -2712,7 +2714,7 @@ function advanceCatTimeline() {
   if (!state.active || earlyFinishRequested) return;
   if (state.remaining > 0) return;
   finishRequested = true;
-  if (isSleepingPose()) wakeFromSleep(() => completeFocus());
+  if (isSleepingPose()) wakeFromSleep(() => completeFocus(false), true);
   else if (catPose === 'sitting') completeFocus();
 }
 function startCatSequence() {
@@ -2750,12 +2752,13 @@ function endFocusEarly() {
   clearInterval(ticker);
   earlyFinishRequested = true;
   document.querySelector('#finishSlider')?.remove();
-  if (isSleepingPose()) return wakeFromSleep(() => finishFocusEarly());
+  if (isSleepingPose()) return wakeFromSleep(() => finishFocusEarly(false), true);
   if (['waking', 'belly-waking'].includes(catPose)) return;
   finishFocusEarly();
 }
-function finishFocusEarly() {
+function finishFocusEarly(playEndSound = true) {
   clearCatVideo();
+  if (playEndSound) playCatWakeSound(catActions.wake.sound);
   releaseFocusLock();
   cancelFocusEndNotification();
   state.active = false;
@@ -2767,7 +2770,7 @@ function finishFocusEarly() {
   save();
   render();
 }
-function completeFocus() { const rewarded = state.duration >= FOCUS_REWARD_MINIMUM_SECONDS; clearInterval(ticker); clearCatVideo(); releaseFocusLock(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; if (rewarded) state.fish += 1; state.focusRecords.unshift({ completedAt: Date.now(), duration: state.duration, purpose: state.purpose }); state.focusRecords = state.focusRecords.slice(0, 2000); state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; focusSettlement = { kind: 'complete', rewarded }; save(); render(); }
+function completeFocus(playEndSound = true) { const rewarded = state.duration >= FOCUS_REWARD_MINIMUM_SECONDS; clearInterval(ticker); clearCatVideo(); if (playEndSound) playCatWakeSound(catActions.wake.sound); releaseFocusLock(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; if (rewarded) state.fish += 1; state.focusRecords.unshift({ completedAt: Date.now(), duration: state.duration, purpose: state.purpose }); state.focusRecords = state.focusRecords.slice(0, 2000); state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; focusSettlement = { kind: 'complete', rewarded }; save(); render(); }
 function openCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.add('open'); d.setAttribute('aria-hidden', 'false'); }
 function closeCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.remove('open'); d.setAttribute('aria-hidden', 'true'); }
 function openSettings() {
