@@ -1,6 +1,8 @@
 const DEFAULT_FOCUS_SECONDS = 13 * 60;
-const SIT_PHASE_SECONDS = 5 * 60;
-const PRONE_SLEEP_PHASE_SECONDS = 3 * 60;
+const CAT_INACTIVITY_MS = 5 * 60 * 1000;
+const CAT_SLEEP_CARD_LOOPS = 6;
+const CAT_CARD_BEAT_MS = 240;
+const CAT_INTERACTION_DRAW_DELAY_MS = 2 * 1000;
 const STORAGE_KEY = 'cat-companion-focus-v1';
 const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
 const LANGUAGE_META = {
@@ -14,7 +16,7 @@ const COPY = {
     profile: '你的小档案', nickname: '昵称', nicknamePlaceholder: '猫咪怎么称呼你？', birthday: '生日', birthdayHint: '生日惊喜会在以后慢慢出现。',
     settingsHint: '语言、音量和小档案都会保存在这台设备上。', reminder: '提醒事项', focus: '专注', minutes: '分钟', today: '今天', tomorrow: '明天', yesterday: '昨天', beforeYesterday: '前天', afterTomorrow: '后天',
     hourly: '每小时', daily: '每天', weekly: '每周', monthly: '每月', weekdays: '工作日', weekends: '周末', biweekly: '每两周', quarterly: '每 3 个月', semiannual: '每 6 个月',
-    completedAt: '完成时间：', notify: '提醒事项', nicknameFallback: '主人',
+    completedAt: '完成时间：', completedStatus: '完成', statsEmpty: '完成一次专注后，这里会记录这段时间。', notify: '提醒事项', nicknameFallback: '主人',
     settlementComplete: '哇，太棒啦！{cat}陪{owner}完成了任务，干得漂亮喵~', settlementEarly: '{owner}，{cat}陪你先休息一下也没关系，下次我们一定能一起坚持到最后喵~', settlementGift: '送你', settlementReceive: '开心收下', settlementContinue: '下次继续'
   },
   en: {
@@ -22,16 +24,16 @@ const COPY = {
     profile: 'About you', nickname: 'Nickname', nicknamePlaceholder: 'What should kitty call you?', birthday: 'Birthday', birthdayHint: 'Birthday surprises will arrive in a future update.',
     settingsHint: 'Language, sound, and profile details stay on this device.', reminder: 'Reminder', focus: 'Focus', minutes: 'min', today: 'Today', tomorrow: 'Tomorrow', yesterday: 'Yesterday', beforeYesterday: 'Two days ago', afterTomorrow: 'The day after tomorrow',
     hourly: 'Every hour', daily: 'Every day', weekly: 'Every week', monthly: 'Every month', weekdays: 'Weekdays', weekends: 'Weekends', biweekly: 'Every two weeks', quarterly: 'Every 3 months', semiannual: 'Every 6 months',
-    completedAt: 'Completed: ', notify: 'Reminder', nicknameFallback: 'friend',
-    settlementComplete: 'Wow, amazing! {cat} helped {owner} finish the task. Great job, meow~', settlementEarly: 'It is okay to rest a while, {owner}. {cat} will be here with you. We will make it to the end together next time, meow~', settlementGift: 'A gift for you', settlementReceive: 'Gladly accept', settlementContinue: 'Keep going'
+    completedAt: 'Completed: ', completedStatus: 'Completed', statsEmpty: 'Your completed focus sessions will appear here.', notify: 'Reminder', nicknameFallback: 'friend',
+    settlementComplete: 'Hooray! {cat} and {owner} got it done together. You did such a great job, meow~', settlementEarly: 'It is okay to take a breather, {owner}. {cat} will keep you company, and we will give it another go next time, meow~', settlementGift: 'A gift for you', settlementReceive: 'Thanks!', settlementContinue: 'Next time'
   },
   ms: {
     settings: 'Tetapan', language: 'Bahasa', music: 'Muzik latar', catSound: 'Suara si comel',
     profile: 'Tentang awak', nickname: 'Nama panggilan', nicknamePlaceholder: 'Si comel patut panggil awak apa?', birthday: 'Hari jadi', birthdayHint: 'Kejutan hari jadi akan hadir dalam kemas kini akan datang.',
     settingsHint: 'Bahasa, bunyi dan maklumat peribadi disimpan pada peranti ini.', reminder: 'Peringatan', focus: 'Fokus', minutes: 'min', today: 'Hari ini', tomorrow: 'Esok', yesterday: 'Semalam', beforeYesterday: 'Dua hari lepas', afterTomorrow: 'Lusa',
     hourly: 'Setiap jam', daily: 'Setiap hari', weekly: 'Setiap minggu', monthly: 'Setiap bulan', weekdays: 'Hari bekerja', weekends: 'Hujung minggu', biweekly: 'Setiap dua minggu', quarterly: 'Setiap 3 bulan', semiannual: 'Setiap 6 bulan',
-    completedAt: 'Selesai: ', notify: 'Peringatan', nicknameFallback: 'kawan',
-    settlementComplete: 'Wah, hebatnya! {cat} menemani {owner} menyiapkan tugasan. Hebat, meow~', settlementEarly: 'Tidak mengapa untuk berehat dulu, {owner}. {cat} akan menemani awak. Lain kali kita akan sampai ke penghujung bersama, meow~', settlementGift: 'Hadiah untuk awak', settlementReceive: 'Terima dengan gembira', settlementContinue: 'Teruskan lagi'
+    completedAt: 'Selesai: ', completedStatus: 'Selesai', statsEmpty: 'Sesi fokus yang selesai akan muncul di sini.', notify: 'Peringatan', nicknameFallback: 'kawan',
+    settlementComplete: 'Yay! {cat} dan {owner} berjaya siapkan tugasan bersama. Memang hebat, meow~', settlementEarly: '{owner}, tak apa kalau nak rehat sekejap. {cat} teman awak di sini, dan kita cuba lagi lain kali, meow~', settlementGift: 'Hadiah untuk awak', settlementReceive: 'Terima kasih!', settlementContinue: 'Lain kali'
   }
 };
 function copy(key) { return COPY[state.locale]?.[key] || COPY['zh-CN'][key] || key; }
@@ -40,20 +42,21 @@ function ownerName() { return state.ownerName?.trim() || copy('nicknameFallback'
 function catName() { return state.catName?.trim() || (state.locale === 'en' ? 'Kitty' : state.locale === 'ms' ? 'Si comel' : '咪咪'); }
 function settlementCopy(key) { return copy(key).replace('{owner}', escapeHtml(ownerName())).replace('{cat}', escapeHtml(catName())); }
 function catReminderCopy(title) {
-  if (state.locale === 'en') return `Hey ${ownerName()}, kitty says it is time for ${title}.`;
-  if (state.locale === 'ms') return `${ownerName()}, si comel kata sudah tiba masa untuk: ${title}.`;
+  if (state.locale === 'en') return `Hey ${ownerName()}, it is time for ${title}. ${catName()} wanted to give you a gentle nudge, meow~`;
+  if (state.locale === 'ms') return `Hai ${ownerName()}, dah tiba masa untuk ${title}. ${catName()} nak ingatkan awak sikit, meow~`;
   return `${ownerName()}，小猫提醒你：${title}`;
 }
 function reminderLeadTime(reminder) {
   const minutes = Math.max(0, Math.ceil((reminder.at - Date.now()) / 60000));
-  if (state.locale === 'en') return minutes ? `${minutes} minute${minutes === 1 ? '' : 's'} to go` : 'it is time now';
-  if (state.locale === 'ms') return minutes ? `tinggal ${minutes} minit` : 'sudah tiba masanya';
+  if (state.locale === 'en') return minutes ? `in ${minutes} minute${minutes === 1 ? '' : 's'}` : 'right now';
+  if (state.locale === 'ms') return minutes ? `dalam ${minutes} minit` : 'sekarang';
   return minutes ? `还剩 ${minutes} 分钟` : '已经到时间了';
 }
 function bellReminderCopy(reminder) {
   const title = reminderTitleLabel(reminder.title);
-  if (state.locale === 'en') return `${ownerName()}, ${catName()} says: ${title} is ${reminderLeadTime(reminder)}. Time to get ready, meow~`;
-  if (state.locale === 'ms') return `${ownerName()}, ${catName()} ingatkan: ${reminderLeadTime(reminder)} sebelum ${title}. Jom bersiap, meow~`;
+  const due = reminder.at <= Date.now() || !(Number(reminder.advanceMinutes) > 0);
+  if (state.locale === 'en') return due ? `Hey ${ownerName()}, it is time for ${title}. Let us get going, meow~` : `Hey ${ownerName()}, ${title} starts ${reminderLeadTime(reminder)}. Let us get ready, meow~`;
+  if (state.locale === 'ms') return due ? `Hai ${ownerName()}, dah tiba masa untuk ${title}. Jom kita mula, meow~` : `Hai ${ownerName()}, ${title} akan bermula ${reminderLeadTime(reminder)}. Jom bersedia, meow~`;
   if (reminder.at <= Date.now() || !(Number(reminder.advanceMinutes) > 0)) return `${ownerName()}，${catName()}提醒你：[${title}]已经到时间了，抓紧行动起来吧喵~`;
   return `${ownerName()}，${catName()}提醒你：离[${title}]${reminderLeadTime(reminder)}，抓紧行动起来吧喵~`;
 }
@@ -237,11 +240,16 @@ const catActions = {
   sleeping: { source: '/videos/cat/scene-figure-layout-controls/prone-sleep.mp4', duration: 5090 },
   wake: { source: '/videos/cat/scene-figure-layout-controls/stretch-wake.mp4', sound: '/audio/prone-wake-meow.mp4', duration: 8080 },
   bellyEnter: { source: '/videos/cat/scene-figure-layout-controls/sleep-to-belly.mp4', duration: 4090 },
+  bellyReturn: { source: '/videos/cat/scene-figure-layout-controls/sleep-to-belly.mp4', duration: 4090, reverse: true },
   bellySleeping: { source: '/videos/cat/scene-figure-layout-controls/belly-loop.mp4', duration: 5040 },
   bellyWake: { source: '/videos/cat/scene-figure-layout-controls/belly-wake.mp4', sound: '/audio/belly-wake-meow.mp4', duration: 6080 },
-  pawScratch: { source: '/videos/cat/scene-figure-layout-controls/paw-scratch-composited.mp4', sound: '/audio/paw-scratch-meow.mp3', duration: 6040, composited: true }
+  pawScratch: { source: '/videos/cat/scene-figure-layout-controls/paw-scratch-composited.mp4', sound: '/audio/paw-scratch-meow.mp3', duration: 6040, composited: true },
+  headPet: { source: '/videos/cat/scene-figure-layout-controls/head-pet-composited.mp4', duration: 8040, composited: true, instantEnd: true },
+  bodyScratch: { source: '/videos/cat/scene-figure-layout-controls/body-scratch-composited.mp4', useVideoAudio: true, duration: 4040, composited: true, instantEnd: true, stopAt: 2.2 },
+  mouseLook: { source: '/videos/cat/scene-figure-layout-controls/mouse-look-composited.mp4', duration: 5030, composited: true, instantEnd: true }
 };
 const ACTION_PAUSE_MS = 8 * 1000;
+const FOCUS_REWARD_MINIMUM_SECONDS = 25 * 60;
 const FOCUS_NOTIFICATION_ID = 1001;
 const REMINDER_NOTIFICATION_BASE = 200000;
 const app = document.querySelector('#app');
@@ -255,13 +263,16 @@ let activeCatPlayback;
 let activeCatSlot = -1;
 const catWakeSound = new Audio();
 let catPose = 'sitting';
-let sleepRequested = false;
-let sleepBranch;
 let finishRequested = false;
 let earlyFinishRequested = false;
-let sittingActionRequested = false;
-let nextCloserAt = 120;
-let lobbyIdleRounds = 0;
+let catSleepDrawTimer;
+let sleepLoopRounds = 0;
+let catInactivityStartedAt = Date.now();
+let awakeCloserChance = .05;
+let proneWakeChance = .01;
+let proneFlipChance = .004;
+let bellyReturnChance = .09;
+let bellyWakeChance = .10;
 let reminderReactionPlaying = false;
 let activeReminderReactionId = null;
 let reminderBellTargetId = null;
@@ -271,9 +282,12 @@ let reminderReactionStopTimer;
 let catChromaFrame;
 let catVideoFrameCallback;
 let catChromaSettleTimer;
+let catActionSoundTimer;
+let catInteractionResumeTimer;
 let activeChromaVideo;
 let catAudioPrimed = false;
 let focusSettlement = null;
+let activeCatInteraction = null;
 
 function localNotifications() { return window.Capacitor?.Plugins?.LocalNotifications; }
 function urgentAlarm() { return window.Capacitor?.Plugins?.UrgentAlarm; }
@@ -824,7 +838,7 @@ function renderStatsDrawer() {
   const recordTime = record => state.statsPeriod === 'day'
     ? new Date(record.completedAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit', hour12: false })
     : new Date(record.completedAt).toLocaleDateString(localeTag(), { month: 'numeric', day: 'numeric' });
-  const recordsSection = state.statsPeriod === 'day' ? `<section class="stats-records"><div class="stats-records-head"><span>${recordTitle}</span></div>${records.length ? records.map(record => `<article><div><strong>${escapeHtml(record.purpose || '专注')}</strong><span>${recordTime(record)} 完成</span></div><b>${formatMinutes(record.duration)}</b></article>`).join('') : '<p class="stats-empty">完成一次专注后，这里会记录这段时间。</p>'}</section>` : '';
+  const recordsSection = state.statsPeriod === 'day' ? `<section class="stats-records"><div class="stats-records-head"><span>${recordTitle}</span></div>${records.length ? records.map(record => `<article><div><strong>${escapeHtml(record.purpose === '专注' ? copy('focus') : record.purpose || copy('focus'))}</strong><span>${recordTime(record)} ${copy('completedStatus')}</span></div><b>${formatMinutes(record.duration)}</b></article>`).join('') : `<p class="stats-empty">${copy('statsEmpty')}</p>`}</section>` : '';
   return `<aside class="stats-drawer ${state.statsOpen ? 'open' : ''}" id="statsDrawer" aria-hidden="${state.statsOpen ? 'false' : 'true'}"><section class="stats-sheet" aria-labelledby="statsTitle"><header class="stats-head"><div><p>专注统计</p><h1 id="statsTitle">小猫陪你走过的时光</h1></div><button class="close-button" id="closeStats" type="button" aria-label="关闭统计">x</button></header><div class="stats-tabs" role="tablist">${periods.map(([value, label]) => `<button class="${state.statsPeriod === value ? 'is-active' : ''}" type="button" data-stats-period="${value}" role="tab" aria-selected="${state.statsPeriod === value}">${label}</button>`).join('')}</div>${picker}${todaySummary}${chartSection}${recordsSection}${renderCalendarPicker()}</section></aside>`;
 }
 function reminderInputValue(time = Date.now()) {
@@ -1238,12 +1252,27 @@ function renderReminderDrawer() {
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, focusRecords: state.focusRecords, reminders: state.reminders, completedSubtasks: state.completedSubtasks, reminderLastTriggeredAt: state.reminderLastTriggeredAt, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume, locale: state.locale, ownerName: state.ownerName, ownerNameLocked: state.ownerNameLocked, catName: state.catName, catNameLocked: state.catNameLocked, birthday: state.birthday, birthdayUpdatedAt: state.birthdayUpdatedAt })); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
+function settlementCopyLayout(message) {
+  const length = [...message].length;
+  const [medium, long] = state.locale === 'zh-CN' ? [36, 54] : [84, 120];
+  return length > long ? 'is-copy-long' : length > medium ? 'is-copy-medium' : 'is-copy-short';
+}
 function renderFocusSettlement() {
   if (state.view !== 'reward' || !focusSettlement) return '';
   const complete = focusSettlement.kind === 'complete';
+  const rewarded = complete && focusSettlement.rewarded;
   const message = settlementCopy(complete ? 'settlementComplete' : 'settlementEarly');
   const button = copy(complete ? 'settlementReceive' : 'settlementContinue');
-  return `<section class="focus-settlement-backdrop" role="dialog" aria-modal="true" aria-labelledby="focusSettlementTitle"><div class="focus-settlement-card ${complete ? 'is-complete' : 'is-early'}"><img class="focus-settlement-art" src="/images/settlement/focus-reward-card-final.png" alt=""><div class="focus-settlement-content"><h2 id="focusSettlementTitle">${message}</h2>${complete ? `<p class="focus-settlement-gift"><span>${copy('settlementGift')}</span><span class="focus-settlement-fish-count"><img src="/icons/fish-simple.svg" alt="${state.locale === 'zh-CN' ? '小鱼干' : state.locale === 'ms' ? 'snek ikan' : 'fish treat'}"><span>×1</span></span></p>` : ''}<button id="confirmFocusSettlement" type="button">${button}<img src="/icons/paw-print.svg" alt=""></button></div></div></section>`;
+  return `<section class="focus-settlement-backdrop" role="dialog" aria-modal="true" aria-labelledby="focusSettlementTitle"><div class="focus-settlement-card ${complete ? 'is-complete' : 'is-early'} ${complete && !rewarded ? 'is-no-reward' : ''}"><img class="focus-settlement-art" src="/images/settlement/focus-reward-card-final.png" alt=""><div class="focus-settlement-content"><h2 class="settlement-copy ${settlementCopyLayout(message)}" id="focusSettlementTitle">${message}</h2>${rewarded ? `<p class="focus-settlement-gift"><span>${copy('settlementGift')}</span><span class="focus-settlement-fish-count"><img src="/icons/fish-simple.svg" alt="${state.locale === 'zh-CN' ? '小鱼干' : state.locale === 'ms' ? 'snek ikan' : 'fish treat'}"><span>×1</span></span></p>` : ''}<button id="confirmFocusSettlement" type="button">${button}<img src="/icons/paw-print.svg" alt=""></button></div></div></section>`;
+}
+
+function renderCatInteractionZones() {
+  if (state.active || state.view !== 'rug' || reminderReactionPlaying || focusSettlement) return '';
+  return `<div class="cat-interaction-zones" aria-label="猫咪互动">
+    <button class="cat-interaction-zone cat-look-field" type="button" data-cat-look aria-label="让猫咪看向触碰方向"></button>
+    <button class="cat-interaction-zone cat-interaction-head" type="button" data-cat-head aria-label="摸摸猫咪的头"></button>
+    <button class="cat-interaction-zone cat-interaction-body" type="button" data-cat-scratch aria-label="轻轻挠一下猫咪"></button>
+  </div>`;
 }
 
 function render() {
@@ -1266,7 +1295,7 @@ function render() {
       : `<div class="timer-setup"><div class="timer-row"><button class="duration-button" id="editDuration" type="button" aria-label="设置专注时长"><strong>${formatTime(state.duration)}</strong></button><button class="purpose-button" id="editPurpose" type="button" aria-label="填写本次专注内容" title="填写本次专注内容"><img class="note-icon" src="/icons/notebook-pen.svg" alt=""></button></div><p class="focus-title">${escapeHtml(state.purpose || copy('focus'))}</p>${state.editingDuration ? `<form class="inline-editor" id="durationForm"><label>分钟<input id="durationInput" type="number" min="1" max="180" value="${Math.round(state.duration / 60)}" inputmode="numeric" required></label><button type="submit">确定</button></form>` : ''}${state.editingPurpose ? `<form class="inline-editor purpose-editor" id="purposeForm"><input id="purposeInput" type="text" maxlength="24" value="${escapeHtml(state.purpose)}" placeholder="例如：整理今天的方案"><button type="submit">确定</button></form>` : ''}<button class="start-button" id="startFocus" type="button"><span>开始</span></button></div>`;
   app.innerHTML = `<section class="room ${state.active ? 'is-focusing' : ''} ${isCloseView ? 'is-close' : ''}">
     <div class="room-art" aria-hidden="true"></div><div class="focus-art" aria-hidden="true"></div><div class="sun-wash" aria-hidden="true"></div>
-    ${showEntryCat ? `<div class="cat-video-layer" aria-hidden="true"><video class="cat-animation is-active" src="${catActions.idle.source}" autoplay loop muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-animation" muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-chroma-source" id="catChromaSource" playsinline preload="auto"></video><canvas class="cat-chroma-canvas" id="catChromaCanvas"></canvas></div>` : ''}
+    ${showEntryCat ? `<div class="cat-video-layer" aria-hidden="true"><video class="cat-animation is-active" src="${catActions.idle.source}" autoplay loop muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-animation" muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-chroma-source" id="catChromaSource" playsinline preload="auto"></video><canvas class="cat-chroma-canvas" id="catChromaCanvas"></canvas></div>${renderCatInteractionZones()}` : ''}
     <header class="topbar"><button class="top-icon-button shop-top-button" id="openCollection" type="button" aria-label="打开商城，拥有 ${state.fish} 条小鱼干"><img src="/icons/shopping-bag.svg" alt=""><span class="fish-count"><img src="/icons/fish-simple.svg" alt="">x <b>${state.fish}</b></span></button><button class="top-icon-button settings-top-button" id="openSettings" type="button" aria-label="打开系统设置"><img src="/icons/settings.svg" alt=""></button></header>
     ${!state.active && state.view === 'rug' ? `<button class="stats-button" id="openStats" type="button" aria-label="查看专注统计" title="专注统计"><img src="/icons/paw-chart.svg" alt=""></button><button class="reminders-button" id="openReminders" type="button" aria-label="${activeDueReminderCount ? `打开提醒事项，${activeDueReminderCount} 个已提醒未完成任务` : '打开提醒事项'}" title="提醒事项"><img src="/icons/reminder-list.svg" alt="">${dueReminderBadge}</button><button class="reminder-bell ${activeReminderReactionId && !reminderBellAcknowledged ? 'is-ringing' : ''}" id="openReminderBell" type="button" aria-label="${activeDueReminder ? `查看到时提醒：${escapeHtml(reminderTitleLabel(activeDueReminder.title))}` : '打开提醒事项'}" title="提醒"><img src="/icons/bell.svg" alt=""></button>` : ''}
     <section class="focus-panel" aria-live="polite">${focusControl}<p class="room-note">${state.note}</p></section>
@@ -1288,6 +1317,11 @@ function render() {
   else reminderBellDialogId = null;
   localizeStaticInterface();
   document.querySelector('#startFocus')?.addEventListener('click', startFocus);
+  app.querySelector('.room')?.addEventListener('pointerdown', () => {
+    if (state.active || !catSceneIsAvailable() || activeCatInteraction) return;
+    if (isSleepingPose()) return wakeFromSleep(resumeAwakeCards);
+    resetAwakeWindow();
+  });
   document.querySelector('#confirmFocusSettlement')?.addEventListener('click', () => {
     focusSettlement = null;
     state.view = 'rug';
@@ -1300,6 +1334,22 @@ function render() {
       || dueReminder();
     if (reminder) openReminderBellDialog(reminder);
   });
+  const headZone = document.querySelector('[data-cat-head]');
+  headZone?.addEventListener('pointerdown', event => {
+    event.preventDefault();
+    headZone.setPointerCapture?.(event.pointerId);
+    startCatInteraction('head', catActions.headPet, true);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => headZone?.addEventListener(type, stopHeldCatInteraction));
+  document.querySelector('[data-cat-scratch]')?.addEventListener('click', () => startCatInteraction('scratch', catActions.bodyScratch));
+  const lookField = document.querySelector('[data-cat-look]');
+  lookField?.addEventListener('pointerdown', event => {
+    event.preventDefault();
+    lookField.setPointerCapture?.(event.pointerId);
+    startCatLook(event);
+  });
+  lookField?.addEventListener('pointermove', updateCatLook);
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => lookField?.addEventListener(type, stopHeldCatInteraction));
   document.querySelector('#editDuration')?.addEventListener('click', () => { state.editingDuration = !state.editingDuration; state.editingPurpose = false; render(); });
   document.querySelector('#editPurpose')?.addEventListener('click', () => { state.editingPurpose = !state.editingPurpose; state.editingDuration = false; render(); });
   document.querySelector('#durationForm')?.addEventListener('submit', event => {
@@ -2149,6 +2199,9 @@ function clearCatVideo() {
   clearTimeout(catPauseTimer);
   clearTimeout(catPlaybackTimer);
   clearTimeout(catChromaSettleTimer);
+  clearTimeout(catActionSoundTimer);
+  clearTimeout(catInteractionResumeTimer);
+  clearTimeout(catSleepDrawTimer);
   clearTimeout(reminderReactionStopTimer);
   reminderReactionStopTimer = undefined;
   cancelAnimationFrame(catChromaFrame);
@@ -2167,14 +2220,167 @@ function clearCatVideo() {
   activeCatPlayback = undefined;
   activeCatSlot = -1;
   stopCatWakeSound();
-  sleepRequested = false;
-  sleepBranch = undefined;
   finishRequested = false;
   earlyFinishRequested = false;
-  sittingActionRequested = false;
-  nextCloserAt = 120;
-  lobbyIdleRounds = 0;
+  catInactivityStartedAt = Date.now();
+  awakeCloserChance = .05;
+  proneWakeChance = .01;
+  proneFlipChance = .004;
+  bellyReturnChance = .09;
+  bellyWakeChance = .10;
+  sleepLoopRounds = 0;
   catPose = 'sitting';
+}
+function canUseCatInteraction() {
+  return !state.active && state.view === 'rug' && !reminderReactionPlaying && !activeReminderReactionId && !focusSettlement && !activeCatInteraction;
+}
+function startCatInteraction(kind, action, holding = false) {
+  if (!canUseCatInteraction()) return;
+  if (isSleepingPose()) return wakeFromSleep(resumeAwakeCards);
+  if (catPose !== 'sitting') return;
+  clearTimeout(catInteractionResumeTimer);
+  resetAwakeWindow();
+  clearTimeout(catSleepDrawTimer);
+  clearTimeout(catPlaybackTimer);
+  activeCatPlayback = undefined;
+  activeCatSlot = -1;
+  const interaction = { kind, holding };
+  activeCatInteraction = interaction;
+  playChromaCatVideo(
+    action,
+    () => finishCatInteraction(interaction),
+    holding,
+    () => activeCatInteraction === interaction && interaction.holding,
+    () => {
+      if (activeCatInteraction !== interaction) return;
+      document.querySelectorAll('.cat-animation').forEach(video => {
+        video.pause();
+        video.classList.remove('is-active');
+      });
+    }
+  );
+}
+function finishCatInteraction(interaction) {
+  if (activeCatInteraction !== interaction) return;
+  activeCatInteraction = null;
+  clearTimeout(catInteractionResumeTimer);
+  catInteractionResumeTimer = setTimeout(() => {
+    if (!state.active && state.view === 'rug' && !reminderReactionPlaying && !activeCatInteraction && catPose === 'sitting') playAwakeCard();
+  }, CAT_INTERACTION_DRAW_DELAY_MS);
+}
+function stopHeldCatInteraction() {
+  const interaction = activeCatInteraction;
+  if (!interaction?.holding) return;
+  interaction.holding = false;
+  cancelAnimationFrame(catChromaFrame);
+  if (catVideoFrameCallback && activeChromaVideo?.cancelVideoFrameCallback) activeChromaVideo.cancelVideoFrameCallback(catVideoFrameCallback);
+  catVideoFrameCallback = undefined;
+  activeChromaVideo?.pause();
+  activeChromaVideo = undefined;
+  clearTimeout(catActionSoundTimer);
+  const idleVideo = document.querySelector('.cat-animation');
+  if (idleVideo) {
+    idleVideo.loop = true;
+    idleVideo.currentTime = 0;
+    idleVideo.classList.add('is-active');
+    idleVideo.play().catch(() => {});
+  }
+  const canvas = document.querySelector('#catChromaCanvas');
+  canvas?.classList.add('is-instant');
+  canvas?.classList.remove('is-active');
+  requestAnimationFrame(() => canvas?.classList.remove('is-instant'));
+  finishCatInteraction(interaction);
+}
+function drawCompositedCatFrame(context, canvas, video) {
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  const scale = Math.max(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
+  const width = video.videoWidth * scale;
+  const height = video.videoHeight * scale;
+  context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+}
+function catLookTime(event) {
+  const room = document.querySelector('.room');
+  if (!room) return 0;
+  const bounds = room.getBoundingClientRect();
+  const x = event.clientX - bounds.left - bounds.width / 2;
+  const y = bounds.top + bounds.height * .64 - event.clientY;
+  const angle = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  if (angle >= 337.5 || angle < 22.5) return 3.75;
+  if (angle < 67.5) return 3.2;
+  if (angle < 112.5) return 2.55;
+  if (angle < 157.5) return 1.9;
+  if (angle < 202.5) return 1.35;
+  if (angle < 247.5) return .95;
+  if (angle < 292.5) return .55;
+  return 4.25;
+}
+function startCatLook(event) {
+  if (!canUseCatInteraction()) return;
+  if (isSleepingPose()) return wakeFromSleep(resumeAwakeCards);
+  if (catPose !== 'sitting') return;
+  clearTimeout(catInteractionResumeTimer);
+  resetAwakeWindow();
+  clearTimeout(catSleepDrawTimer);
+  clearTimeout(catPlaybackTimer);
+  activeCatPlayback = undefined;
+  activeCatSlot = -1;
+  const canvas = document.querySelector('#catChromaCanvas');
+  const video = document.querySelector('#catChromaSource');
+  if (!canvas || !video) return;
+  const interaction = { kind: 'look', holding: true, time: catLookTime(event) };
+  activeCatInteraction = interaction;
+  activeChromaVideo = video;
+  video.muted = true;
+  video.playsInline = true;
+  video.onloadeddata = () => {
+    if (activeCatInteraction !== interaction || activeChromaVideo !== video) return;
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(canvas.clientWidth * pixelRatio);
+    canvas.height = Math.round(canvas.width * canvas.clientHeight / canvas.clientWidth);
+    updateCatLookFrame(interaction);
+  };
+  video.src = catActions.mouseLook.source;
+  video.load();
+}
+function updateCatLook(event) {
+  const interaction = activeCatInteraction;
+  if (!interaction?.holding || interaction.kind !== 'look') return;
+  const nextTime = catLookTime(event);
+  if (nextTime === interaction.time) return;
+  interaction.time = nextTime;
+  updateCatLookFrame(interaction);
+}
+function updateCatLookFrame(interaction) {
+  const canvas = document.querySelector('#catChromaCanvas');
+  const video = document.querySelector('#catChromaSource');
+  if (!canvas || !video || activeCatInteraction !== interaction || activeChromaVideo !== video || video.readyState < 2) return;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (interaction.seeking) return;
+  const draw = () => {
+    if (activeCatInteraction !== interaction || activeChromaVideo !== video) return;
+    video.pause();
+    drawCompositedCatFrame(context, canvas, video);
+    if (!interaction.firstFrameDrawn) {
+      interaction.firstFrameDrawn = true;
+      canvas.classList.add('is-active', 'is-instant');
+      requestAnimationFrame(() => canvas.classList.remove('is-instant'));
+      document.querySelectorAll('.cat-animation').forEach(idleVideo => {
+        idleVideo.pause();
+        idleVideo.classList.remove('is-active');
+      });
+    }
+  };
+  const targetTime = interaction.time;
+  video.onseeked = () => {
+    interaction.seeking = false;
+    draw();
+    if (Math.abs(video.currentTime - interaction.time) >= .04) updateCatLookFrame(interaction);
+  };
+  if (Math.abs(video.currentTime - interaction.time) < .04) draw();
+  else {
+    interaction.seeking = true;
+    video.currentTime = targetTime;
+  }
 }
 function drawRoomArtFrame(context, canvas) {
   if (!roomArtFrame.complete || !roomArtFrame.naturalWidth) return;
@@ -2183,33 +2389,32 @@ function drawRoomArtFrame(context, canvas) {
   const height = roomArtFrame.naturalHeight * scale;
   context.drawImage(roomArtFrame, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
 }
-function playChromaCatVideo(action, onEnded, loop = false) {
+function playChromaCatVideo(action, onEnded, loop = false, shouldLoop = () => !reminderBellAcknowledged, onFirstFrame) {
   const canvas = document.querySelector('#catChromaCanvas');
   if (!canvas) return onEnded?.();
   const context = canvas.getContext('2d', { willReadFrequently: true });
   const video = document.querySelector('#catChromaSource');
   if (!video) return onEnded?.();
   activeChromaVideo = video;
-  // Reminder reactions start without a user gesture, so the browser only permits video playback when muted.
-  video.muted = true;
+  // Reminder reactions start without a user gesture, so they remain muted; direct interactions can use their synchronized source audio.
+  video.muted = !action.useVideoAudio;
   video.volume = state.catVolume / 100;
   video.playsInline = true;
   let drawFrame;
+  let firstFrameDrawn = false;
+  let actionSoundPlayed = false;
   video.addEventListener('loadeddata', () => {
     if (activeChromaVideo !== video) return;
     const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.round(canvas.clientWidth * pixelRatio);
     canvas.height = Math.round(canvas.width * canvas.clientHeight / canvas.clientWidth);
-    canvas.classList.add('is-active');
     video.loop = false;
+    if (Number.isFinite(action.startAt)) video.currentTime = action.startAt;
     drawFrame = (scheduleNext = true) => {
       if (activeChromaVideo !== video) return;
       context.clearRect(0, 0, canvas.width, canvas.height);
       if (action.composited) {
-        const scale = Math.max(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
-        const width = video.videoWidth * scale;
-        const height = video.videoHeight * scale;
-        context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+        drawCompositedCatFrame(context, canvas, video);
       } else {
         drawRoomArtFrame(context, canvas);
       if (action.cropSquare) {
@@ -2248,7 +2453,17 @@ function playChromaCatVideo(action, onEnded, loop = false) {
           frame.data[index + 1] = Math.max(red, blue) + 1;
         }
       }
-      context.putImageData(frame, 0, 0);
+        context.putImageData(frame, 0, 0);
+      }
+      if (!firstFrameDrawn) {
+        firstFrameDrawn = true;
+        canvas.classList.add('is-active', 'is-instant');
+        requestAnimationFrame(() => canvas.classList.remove('is-instant'));
+        onFirstFrame?.();
+      }
+      if (!action.useVideoAudio && !actionSoundPlayed && action.soundAt !== undefined && video.currentTime >= action.soundAt) {
+        actionSoundPlayed = true;
+        playCatWakeSound(action.sound);
       }
       if (!scheduleNext) return;
       if (action.composited && video.requestVideoFrameCallback) {
@@ -2257,14 +2472,28 @@ function playChromaCatVideo(action, onEnded, loop = false) {
         catChromaFrame = requestAnimationFrame(drawFrame);
       }
     };
-    video.play().then(() => playCatWakeSound(action.sound)).catch(() => {});
+    video.play().then(() => {
+      clearTimeout(catActionSoundTimer);
+      if (!action.useVideoAudio && action.soundAt === undefined) {
+        if (!action.useVideoAudio) playCatWakeSound(action.sound);
+      }
+      if (action.stopAt) {
+        clearTimeout(catChromaSettleTimer);
+        catChromaSettleTimer = setTimeout(() => {
+          if (activeChromaVideo === video) {
+            video.pause();
+            video.onended?.();
+          }
+        }, action.stopAt * 1000);
+      }
+    }).catch(() => {});
     drawFrame();
   }, { once: true });
   video.src = action.source;
   video.load();
   video.onended = () => {
     if (activeChromaVideo !== video) return;
-    if (loop && !reminderBellAcknowledged) {
+    if (loop && shouldLoop()) {
       if (catVideoFrameCallback && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(catVideoFrameCallback);
       catVideoFrameCallback = undefined;
       video.currentTime = 0;
@@ -2289,6 +2518,13 @@ function playChromaCatVideo(action, onEnded, loop = false) {
         idleVideo.classList.add('is-active');
         idleVideo.play().catch(() => {});
       }
+      if (action.instantEnd) {
+        canvas.classList.add('is-instant');
+        canvas.classList.remove('is-active');
+        requestAnimationFrame(() => canvas.classList.remove('is-instant'));
+        onEnded?.();
+        return;
+      }
       requestAnimationFrame(() => canvas.classList.remove('is-active'));
       catChromaSettleTimer = setTimeout(() => onEnded?.(), 340);
       return;
@@ -2310,7 +2546,14 @@ function playCatVideo(source, onEnded, loop = false) {
   nextVideo.onloadeddata = () => {
     if (activeCatPlayback !== playbackId) return;
     nextVideo.loop = loop;
-    nextVideo.currentTime = 0;
+    nextVideo.playbackRate = action?.reverse ? -1 : 1;
+    nextVideo.currentTime = action?.reverse ? Math.max(0, nextVideo.duration - .03) : 0;
+    nextVideo.onended = () => {
+      if (activeCatPlayback !== playbackId) return;
+      clearTimeout(catPlaybackTimer);
+      activeCatPlayback = undefined;
+      onEnded?.();
+    };
     currentVideo?.pause();
     currentVideo?.classList.remove('is-active');
     nextVideo.classList.add('is-active');
@@ -2321,211 +2564,164 @@ function playCatVideo(source, onEnded, loop = false) {
     if (!loop) {
       catPlaybackTimer = setTimeout(() => {
         if (activeCatPlayback !== playbackId) return;
+        activeCatPlayback = undefined;
         onEnded?.();
-      }, action?.duration || 5000);
+      }, (action?.duration || 5000) + 500);
     }
   };
   nextVideo.src = playbackId;
   nextVideo.load();
 }
-function showSeatedPose() {
-  catPose = 'sitting';
-  playSeatedIdleLoop();
+function catSceneIsAvailable() {
+  return state.view === 'rug' && !reminderReactionPlaying && !activeReminderReactionId;
 }
-function startLobbySequence() {
-  if (state.active || state.view !== 'rug') return;
+function resetSleepCardChances() {
+  proneWakeChance = .01;
+  proneFlipChance = .004;
+  bellyReturnChance = .09;
+  bellyWakeChance = .10;
+}
+function resetAwakeWindow() {
+  catInactivityStartedAt = Date.now();
+  resetSleepCardChances();
+}
+function isSleepingPose() {
+  return ['lying-down', 'sleeping', 'rolling-over', 'belly-sleeping', 'returning-to-prone'].includes(catPose);
+}
+function shouldEnterSleep() {
+  return Date.now() - catInactivityStartedAt >= CAT_INACTIVITY_MS;
+}
+function pickAwakeCard() {
+  if (Math.random() < awakeCloserChance) {
+    awakeCloserChance = .05;
+    return catActions.closer;
+  }
+  awakeCloserChance = Math.min(1, awakeCloserChance + .02);
+  return [catActions.blink, catActions.tail][Math.floor(Math.random() * 2)];
+}
+function playAwakeIdleLoop() {
+  if (!catSceneIsAvailable() || catPose !== 'sitting') return;
   playCatVideo(catActions.idle.source, () => {
-    if (state.active || state.view !== 'rug') return;
-    lobbyIdleRounds += 1;
-    if (lobbyIdleRounds < 2) {
-      startLobbySequence();
-      return;
-    }
-    lobbyIdleRounds = 0;
-    const action = [catActions.blink, catActions.tail][Math.floor(Math.random() * 2)];
-    playCatVideo(action.source, startLobbySequence);
+    if (!catSceneIsAvailable() || catPose !== 'sitting') return;
+    if (finishRequested) return completeFocus();
+    if (shouldEnterSleep()) return beginSleep();
+    playAwakeCard();
   });
 }
-function elapsedFocusSeconds() {
-  return state.duration - state.remaining;
-}
-function canScheduleSittingAction() {
-  return state.active && catPose === 'sitting' && !finishRequested && (!sleepRequested || sleepBranch === 'wake');
-}
-function scheduleSittingAction() {
-  clearTimeout(catPauseTimer);
-  catPauseTimer = setTimeout(() => {
-    advanceCatTimeline();
-    if (canScheduleSittingAction()) sittingActionRequested = true;
-  }, ACTION_PAUSE_MS);
-}
-function playSeatedIdleLoop() {
-  if (!state.active || catPose !== 'sitting') return;
-  playCatVideo(catActions.idle.source, () => {
-    advanceCatTimeline();
-    if (catPose !== 'sitting') return;
-    if (finishRequested) {
-      completeFocus();
-      return;
-    }
-    if (sittingActionRequested) {
-      sittingActionRequested = false;
-      const elapsed = elapsedFocusSeconds();
-      const action = elapsed >= nextCloserAt
-        ? (nextCloserAt = elapsed + 120, catActions.closer)
-        : [catActions.blink, catActions.tail][Math.floor(Math.random() * 2)];
-      playAwakeAction(action);
-      return;
-    }
-    playSeatedIdleLoop();
-  });
-}
-function playAwakeAction(action) {
-  if (catPose !== 'sitting') return;
+function playAwakeCard() {
+  if (!catSceneIsAvailable() || catPose !== 'sitting') return;
+  const action = pickAwakeCard();
   catPose = 'awake-action';
   playCatVideo(action.source, () => {
+    if (!catSceneIsAvailable() || catPose !== 'awake-action') return;
     catPose = 'sitting';
-    advanceCatTimeline();
-    if (canScheduleSittingAction()) {
-      playSeatedIdleLoop();
-      scheduleSittingAction();
-    }
+    if (finishRequested) return completeFocus();
+    if (shouldEnterSleep()) return beginSleep();
+    playAwakeIdleLoop();
   });
 }
-function playSleepingLoop() {
-  if (!state.active || catPose !== 'sleeping') return;
-  if (earlyFinishRequested) {
-    beginEarlyWake();
-    return;
+function playProneSleepLoop() {
+  if (!catSceneIsAvailable() || catPose !== 'sleeping') return;
+  playCatVideo(catActions.sleeping.source, finishSleepLoop);
+}
+function playBellySleepLoop() {
+  if (!catSceneIsAvailable() || catPose !== 'belly-sleeping') return;
+  playCatVideo(catActions.bellySleeping.source, finishSleepLoop);
+}
+function finishSleepLoop() {
+  if (!catSceneIsAvailable() || !['sleeping', 'belly-sleeping'].includes(catPose)) return;
+  sleepLoopRounds += 1;
+  if (sleepLoopRounds < CAT_SLEEP_CARD_LOOPS) {
+    return catPose === 'sleeping' ? playProneSleepLoop() : playBellySleepLoop();
   }
-  if (sleepBranch || elapsedFocusSeconds() >= SIT_PHASE_SECONDS + PRONE_SLEEP_PHASE_SECONDS) {
-    beginSleepBranch();
-    return;
-  }
-  playCatVideo(catActions.sleeping.source, playSleepingLoop);
+  catSleepDrawTimer = setTimeout(drawSleepCard, CAT_CARD_BEAT_MS);
 }
 function beginSleep() {
-  if (catPose !== 'sitting') return;
+  if (!catSceneIsAvailable() || catPose !== 'sitting') return;
   catPose = 'lying-down';
   playCatVideo(catActions.sleepDown.source, () => {
+    if (!catSceneIsAvailable() || catPose !== 'lying-down') return;
     catPose = 'sleeping';
-    if (earlyFinishRequested) {
-      beginEarlyWake();
-      return;
-    }
-    playSleepingLoop();
+    sleepLoopRounds = 0;
+    playProneSleepLoop();
   });
 }
-function beginSleepBranch() {
-  if (catPose !== 'sleeping') return;
-  sleepBranch ||= Math.random() < .5 ? 'wake' : 'belly';
-  if (sleepBranch === 'belly') {
-    catPose = 'rolling-over';
-    playCatVideo(catActions.bellyEnter.source, () => {
-      catPose = 'belly-sleeping';
-      if (earlyFinishRequested) {
-        beginEarlyWake();
-        return;
-      }
-      playBellySleepingLoop();
-    });
-    return;
-  }
-  catPose = 'waking';
-  playCatVideo(catActions.wake.source, () => {
-    catPose = 'sitting';
-    if (earlyFinishRequested) {
-      finishFocusEarly();
-      return;
+function drawSleepCard() {
+  if (finishRequested) return wakeFromSleep(() => completeFocus());
+  if (earlyFinishRequested) return wakeFromSleep(() => finishFocusEarly());
+  if (catPose === 'sleeping') {
+    const draw = Math.random();
+    if (draw < proneWakeChance) return wakeFromSleep(resumeAwakeCards);
+    if (draw < proneWakeChance + proneFlipChance) {
+      catPose = 'rolling-over';
+      return playCatVideo(catActions.bellyEnter.source, () => {
+        if (catPose !== 'rolling-over') return;
+        catPose = 'belly-sleeping';
+        bellyReturnChance = .09;
+        bellyWakeChance = .10;
+        sleepLoopRounds = 0;
+        playBellySleepLoop();
+      });
     }
-    advanceCatTimeline();
-    if (canScheduleSittingAction()) {
-      playSeatedIdleLoop();
-      scheduleSittingAction();
-    }
-  });
-}
-function playBellySleepingLoop() {
-  if (!state.active || catPose !== 'belly-sleeping') return;
-  if (elapsedFocusSeconds() >= state.duration) {
-    beginBellyWake();
-    return;
+    proneWakeChance = Math.min(1, proneWakeChance + .01);
+    proneFlipChance = Math.min(1 - proneWakeChance, proneFlipChance + .004);
+    sleepLoopRounds = 0;
+    return playProneSleepLoop();
   }
-  playCatVideo(catActions.bellySleeping.source, undefined, true);
-}
-function beginBellyWake() {
   if (catPose !== 'belly-sleeping') return;
-  catPose = 'belly-waking';
-  playCatVideo(catActions.bellyWake.source, () => {
-    catPose = 'sitting';
-    if (earlyFinishRequested) {
-      finishFocusEarly();
-      return;
-    }
-    completeFocus();
-  });
-}
-function beginFinishWake() {
-  if (catPose === 'belly-sleeping') {
-    beginBellyWake();
-    return;
-  }
-  if (catPose !== 'sleeping') return;
-  catPose = 'waking';
-  playCatVideo(catActions.wake.source, () => {
-    catPose = 'sitting';
-    completeFocus();
-  });
-}
-function beginEarlyWake() {
-  if (!state.active || !earlyFinishRequested) return;
-  if (catPose === 'belly-sleeping') {
-    catPose = 'belly-waking';
-    playCatVideo(catActions.bellyWake.source, () => {
-      catPose = 'sitting';
-      finishFocusEarly();
+  const draw = Math.random();
+  if (draw < bellyReturnChance) {
+    catPose = 'returning-to-prone';
+    return playCatVideo(catActions.bellyReturn.source, () => {
+      if (catPose !== 'returning-to-prone') return;
+      catPose = 'sleeping';
+      proneWakeChance = .01;
+      proneFlipChance = .004;
+      sleepLoopRounds = 0;
+      playProneSleepLoop();
     });
-    return;
   }
-  catPose = 'waking';
-  playCatVideo(catActions.wake.source, () => {
-    catPose = 'sitting';
-    finishFocusEarly();
+  if (draw < bellyReturnChance + bellyWakeChance) return wakeFromSleep(resumeAwakeCards);
+  bellyReturnChance = Math.min(1 - bellyWakeChance, bellyReturnChance + .014);
+  bellyWakeChance = Math.min(1 - bellyReturnChance, bellyWakeChance + .015);
+  sleepLoopRounds = 0;
+  playBellySleepLoop();
+}
+function resumeAwakeCards() {
+  resetAwakeWindow();
+  catPose = 'sitting';
+  playAwakeIdleLoop();
+}
+function wakeFromSleep(onAwake) {
+  if (!isSleepingPose()) return onAwake?.();
+  clearTimeout(catSleepDrawTimer);
+  const wakingFromBelly = ['rolling-over', 'belly-sleeping', 'returning-to-prone'].includes(catPose);
+  catPose = wakingFromBelly ? 'belly-waking' : 'waking';
+  playCatVideo(wakingFromBelly ? catActions.bellyWake.source : catActions.wake.source, () => {
+    if (!['waking', 'belly-waking'].includes(catPose)) return;
+    onAwake?.();
   });
+}
+function startLobbySequence() {
+  if (state.active || !catSceneIsAvailable() || activeCatInteraction) return;
+  resetAwakeWindow();
+  catPose = 'sitting';
+  playAwakeIdleLoop();
 }
 function advanceCatTimeline() {
-  if (!state.active) return;
-  if (earlyFinishRequested) return;
-  const elapsed = elapsedFocusSeconds();
-  if (elapsed >= state.duration) {
-    finishRequested = true;
-    beginFinishWake();
-    if (catPose === 'sitting') completeFocus();
-    return;
-  }
-  if (elapsed >= SIT_PHASE_SECONDS && !sleepRequested) {
-    sleepRequested = true;
-    if (catPose === 'sitting') beginSleep();
-    return;
-  }
-  if (sleepRequested && !sleepBranch && catPose === 'sitting') {
-    beginSleep();
-    return;
-  }
-  if (sleepRequested && catPose === 'sleeping' && elapsed >= SIT_PHASE_SECONDS + PRONE_SLEEP_PHASE_SECONDS) {
-    sleepBranch ||= Math.random() < .5 ? 'wake' : 'belly';
-  }
+  if (!state.active || earlyFinishRequested) return;
+  if (state.remaining > 0) return;
+  finishRequested = true;
+  if (isSleepingPose()) wakeFromSleep(() => completeFocus());
+  else if (catPose === 'sitting') completeFocus();
 }
 function startCatSequence() {
-  sleepRequested = false;
-  sleepBranch = undefined;
   finishRequested = false;
   earlyFinishRequested = false;
-  sittingActionRequested = false;
-  nextCloserAt = 120;
+  awakeCloserChance = .05;
+  resetAwakeWindow();
   catPose = 'sitting';
-  showSeatedPose();
-  scheduleSittingAction();
+  playAwakeIdleLoop();
 }
 function syncFocusClock() {
   if (!state.active || !state.endsAt) return;
@@ -2554,11 +2750,8 @@ function endFocusEarly() {
   clearInterval(ticker);
   earlyFinishRequested = true;
   document.querySelector('#finishSlider')?.remove();
-  if (catPose === 'sleeping' || catPose === 'belly-sleeping') {
-    beginEarlyWake();
-    return;
-  }
-  if (['lying-down', 'sleeping', 'rolling-over', 'waking', 'belly-waking'].includes(catPose)) return;
+  if (isSleepingPose()) return wakeFromSleep(() => finishFocusEarly());
+  if (['waking', 'belly-waking'].includes(catPose)) return;
   finishFocusEarly();
 }
 function finishFocusEarly() {
@@ -2574,7 +2767,7 @@ function finishFocusEarly() {
   save();
   render();
 }
-function completeFocus() { clearInterval(ticker); clearCatVideo(); releaseFocusLock(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; state.fish += 1; state.focusRecords.unshift({ completedAt: Date.now(), duration: state.duration, purpose: state.purpose }); state.focusRecords = state.focusRecords.slice(0, 2000); state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; focusSettlement = { kind: 'complete' }; save(); render(); }
+function completeFocus() { const rewarded = state.duration >= FOCUS_REWARD_MINIMUM_SECONDS; clearInterval(ticker); clearCatVideo(); releaseFocusLock(); cancelFocusEndNotification(); state.active = false; state.endsAt = null; state.view = 'reward'; state.remaining = state.duration; if (rewarded) state.fish += 1; state.focusRecords.unshift({ completedAt: Date.now(), duration: state.duration, purpose: state.purpose }); state.focusRecords = state.focusRecords.slice(0, 2000); state.note = '它慢慢睁开眼睛，好像知道你刚刚做完了一件事。'; focusSettlement = { kind: 'complete', rewarded }; save(); render(); }
 function openCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.add('open'); d.setAttribute('aria-hidden', 'false'); }
 function closeCollection() { const d = document.querySelector('#collectionDrawer'); d.classList.remove('open'); d.setAttribute('aria-hidden', 'true'); }
 function openSettings() {

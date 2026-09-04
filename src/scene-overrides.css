@@ -100,6 +100,37 @@
   opacity: 1;
 }
 
+.cat-chroma-canvas.is-instant {
+  transition: none;
+}
+
+.cat-interaction-zones {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cat-interaction-zone {
+  position: absolute;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cat-interaction-zone:focus-visible {
+  outline: 2px solid rgba(244, 217, 141, .9);
+  outline-offset: 2px;
+}
+
+.cat-look-field { z-index: 1; top: 34%; left: 5%; width: 90%; height: 56%; }
+.cat-interaction-head { z-index: 2; top: 43%; left: 37%; width: 27%; height: 18%; }
+.cat-interaction-body { z-index: 2; top: 60%; left: 32%; width: 37%; height: 26%; }
+
 .room.is-close .focus-panel {
   top: max(84px, calc(env(safe-area-inset-top) + 70px));
   bottom: auto;
@@ -733,29 +764,9 @@
 .profile-confirm-dialog #confirmProfileConfirm { background: #66845f; color: #fffdf7; }
 
 html[data-locale="en"] .room,
-html[data-locale="en"] .room button,
-html[data-locale="en"] .room input,
-html[data-locale="en"] .room select,
-html[data-locale="en"] .room output,
-html[data-locale="en"] .room p,
-html[data-locale="en"] .room h1,
-html[data-locale="en"] .room h2,
-html[data-locale="en"] .room label,
-html[data-locale="en"] .room small,
-html[data-locale="en"] .room span,
-html[data-locale="en"] .room strong,
+html[data-locale="en"] .room *,
 html[data-locale="ms"] .room,
-html[data-locale="ms"] .room button,
-html[data-locale="ms"] .room input,
-html[data-locale="ms"] .room select,
-html[data-locale="ms"] .room output,
-html[data-locale="ms"] .room p,
-html[data-locale="ms"] .room h1,
-html[data-locale="ms"] .room h2,
-html[data-locale="ms"] .room label,
-html[data-locale="ms"] .room small,
-html[data-locale="ms"] .room span,
-html[data-locale="ms"] .room strong { font-family: "DynaPuff", sans-serif !important; }
+html[data-locale="ms"] .room * { font-family: "ZCOOL KuaiLe", "Microsoft YaHei", sans-serif !important; }
 
 html[data-locale="en"] .settings-sheet,
 html[data-locale="ms"] .settings-sheet { width: min(354px, 100%); }
@@ -3024,6 +3035,95 @@ html[data-locale="zh-CN"] .bell-reminder-dialog h2 {
 
 .focus-settlement-card.is-complete h2 {
   margin-top: 42px;
+}
+
+.focus-settlement-card.is-no-reward h2 {
+  margin-top: 54px;
+}
+
+.focus-settlement-card.is-complete .settlement-copy.is-copy-medium {
+  margin-top: 34px;
+}
+
+.focus-settlement-card.is-complete .settlement-copy.is-copy-long {
+  margin-top: 26px;
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.focus-settlement-card.is-no-reward .settlement-copy.is-copy-short {
+  margin-top: 60px;
+}
+
+.focus-settlement-card.is-no-reward .settlement-copy.is-copy-medium {
+  margin-top: 50px;
+}
+
+.focus-settlement-card.is-no-reward .settlement-copy.is-copy-long {
+  margin-top: 42px;
+}
+
+html[data-locale="en"] .focus-settlement-card.is-early h2,
+html[data-locale="ms"] .focus-settlement-card.is-early h2 {
+  max-width: 286px;
+  margin-top: 44px;
+  font-size: 17px;
+  line-height: 1.32;
+}
+
+html[data-locale="en"] .focus-settlement-card.is-complete .focus-settlement-content,
+html[data-locale="ms"] .focus-settlement-card.is-complete .focus-settlement-content {
+  inset: 24px 30px 23px;
+}
+
+html[data-locale="en"] .focus-settlement-card.is-complete h2,
+html[data-locale="ms"] .focus-settlement-card.is-complete h2 {
+  max-width: 286px;
+  margin-top: 30px;
+  font-size: 17px;
+  line-height: 1.32;
+}
+
+html[data-locale="en"] .focus-settlement-card.is-no-reward h2,
+html[data-locale="ms"] .focus-settlement-card.is-no-reward h2 {
+  margin-top: 46px;
+}
+
+html[data-locale="en"] .focus-settlement-card.is-complete .settlement-copy.is-copy-medium,
+html[data-locale="ms"] .focus-settlement-card.is-complete .settlement-copy.is-copy-medium {
+  margin-top: 25px;
+}
+
+html[data-locale="en"] .focus-settlement-card.is-complete .settlement-copy.is-copy-long,
+html[data-locale="ms"] .focus-settlement-card.is-complete .settlement-copy.is-copy-long {
+  margin-top: 20px;
+  font-size: 16px;
+  line-height: 1.27;
+}
+
+html[data-locale="en"] .focus-settlement-card.is-no-reward .settlement-copy.is-copy-short,
+html[data-locale="ms"] .focus-settlement-card.is-no-reward .settlement-copy.is-copy-short {
+  margin-top: 52px;
+}
+
+html[data-locale="en"] .focus-settlement-card.is-no-reward .settlement-copy.is-copy-medium,
+html[data-locale="ms"] .focus-settlement-card.is-no-reward .settlement-copy.is-copy-medium {
+  margin-top: 44px;
+}
+
+html[data-locale="en"] .focus-settlement-card.is-no-reward .settlement-copy.is-copy-long,
+html[data-locale="ms"] .focus-settlement-card.is-no-reward .settlement-copy.is-copy-long {
+  margin-top: 36px;
+}
+
+html[data-locale="en"] .focus-settlement-card.is-complete .focus-settlement-gift,
+html[data-locale="ms"] .focus-settlement-card.is-complete .focus-settlement-gift {
+  margin: 8px 0;
+  font-size: 16px;
+}
+
+html[data-locale="ms"] .focus-settlement-card.is-complete button {
+  width: 168px;
 }
 
 .focus-settlement-gift {
