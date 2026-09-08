@@ -45,7 +45,7 @@
 }
 
 .focus-art {
-  background-image: url('/images/cat-room/sofa-rug-focus-figure-layout-controls-v1.png');
+  background-image: url('/images/cat-room/sofa-rug-clean-room-v1.png');
 }
 
 .cat-zone {
@@ -76,6 +76,21 @@
 
 .cat-animation.is-active {
   opacity: 1;
+}
+
+.room-shop-scene-layer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+}
+
+.room-shop-scene-item {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .cat-chroma-source {
@@ -125,6 +140,75 @@
 .cat-interaction-zone:focus-visible {
   outline: 2px solid rgba(244, 217, 141, .9);
   outline-offset: 2px;
+}
+
+.room-shop-wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -8px 0 10px;
+  color: #587653;
+  font-size: 15px;
+}
+
+.room-shop-wallet img,
+.room-shop-product button img {
+  width: 16px;
+  height: 16px;
+  filter: invert(33%) sepia(16%) saturate(1024%) hue-rotate(48deg) brightness(91%) contrast(87%);
+}
+
+.room-shop-section { margin-top: 17px; }
+
+.room-shop-product {
+  grid-template-columns: 54px 1fr auto !important;
+  min-height: 66px;
+}
+
+.room-shop-product-preview {
+  display: block;
+  width: 50px;
+  height: 50px;
+  border: 1px solid rgba(78, 99, 84, .14);
+  border-radius: 6px;
+  background-color: #f3efe4;
+  background-image: url('/images/shop/starter-room-shop-v1.png');
+  background-repeat: no-repeat;
+}
+
+.room-shop-product-preview.is-cushion { background-size: 340%; background-position: 91% 35%; }
+.room-shop-product-preview.is-art { background-size: 320%; background-position: 94% 12%; }
+.room-shop-product-preview.is-decor { background-size: 300%; background-position: 7% 24%; }
+.room-shop-product-preview.is-default { background-image: none; }
+
+.room-shop-product button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 58px;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid rgba(78, 99, 84, .22);
+  border-radius: 5px;
+  background: #fffdf8;
+  color: #4f704d;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.room-shop-product button:disabled {
+  border-color: transparent;
+  background: #e8efe3;
+  color: #71806e;
+  cursor: default;
+}
+
+.room-shop-notice {
+  min-height: 18px;
+  margin: 16px 0 0;
+  color: #bc6756;
+  font-size: 12px;
 }
 
 .cat-look-field { z-index: 1; top: 34%; left: 5%; width: 90%; height: 56%; }

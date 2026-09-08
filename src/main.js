@@ -5,6 +5,7 @@ const CAT_CARD_BEAT_MS = 240;
 const CAT_INTERACTION_DRAW_DELAY_MS = 2 * 1000;
 const STORAGE_KEY = 'cat-companion-focus-v1';
 const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+const shopTestMode = new URLSearchParams(location.search).get('test') === 'shop';
 const LANGUAGE_META = {
   'zh-CN': { tag: 'zh-CN', font: 'ZCOOL KuaiLe' },
   en: { tag: 'en-US', font: 'DynaPuff' },
@@ -218,6 +219,35 @@ const state = {
   note: '它已经在地毯上等你了。',
   ...saved
 };
+const ROOM_SHOP_DEFAULTS = { cushion: null, art: null, decor: null };
+const ROOM_SHOP_LEGACY_IDS = {
+  'plant-bird-of-paradise': 'decor-moon-crescent',
+  'cushion-checker': 'cushion-olive-mosaic',
+  'cushion-moonlit': 'cushion-indigo-arc',
+  'cushion-sunlit': 'cushion-sienna-tile',
+  'cushion-tea': 'cushion-botanical-heraldry',
+  'art-moon-cat': 'art-cat-portal',
+  'art-moonlit': 'art-moon-clouds',
+  'art-sunlit': 'art-terracotta-arch',
+  'art-tea': 'art-mist-boat',
+  'decor-moonlit-lamp': 'decor-moon-crescent',
+  'decor-sunlit-lamp': 'decor-moon-crescent',
+  'decor-tea-shelf': 'decor-oak-shelf'
+};
+const roomShopCurrentId = itemId => ROOM_SHOP_LEGACY_IDS[itemId] || itemId;
+state.roomShopOwned = Array.isArray(state.roomShopOwned)
+  ? [...new Set(state.roomShopOwned.map(roomShopCurrentId))]
+  : [];
+state.roomShopEquipped = { ...ROOM_SHOP_DEFAULTS, ...(state.roomShopEquipped || {}) };
+state.roomShopEquipped.cushion = roomShopCurrentId(state.roomShopEquipped.cushion);
+state.roomShopEquipped.art = roomShopCurrentId(state.roomShopEquipped.art);
+state.roomShopEquipped.decor = roomShopCurrentId(state.roomShopEquipped.decor || state.roomShopEquipped.plant);
+delete state.roomShopEquipped.plant;
+if (shopTestMode && state.fish < 500) {
+  state.fish = 500;
+  state.roomShopTestGrantV1 = true;
+  save();
+}
 if (!saved.reminderLastTriggeredAt) {
   const now = Date.now();
   state.reminderLastTriggeredAt = Object.fromEntries(
@@ -226,11 +256,65 @@ if (!saved.reminderLastTriggeredAt) {
       .map(reminder => [reminder.id, now])
   );
 }
-const furniture = [
-  ['沙发', '霸占座位、靠着抱枕、睡到四脚朝天。'],
-  ['猫爬架', '看窗外、待在高处、抓抓柱子。']
+const makeRoomShopItem = (id, slot, price, name) => ({
+  id,
+  slot,
+  price,
+  clip: `is-${slot === 'art' ? 'art' : slot === 'decor' ? 'decor' : 'cushion'}`,
+  asset: `/images/shop/${id}-plate-v1.png`,
+  preview: `/images/shop/${id}-source-v1.png`,
+  name: { 'zh-CN': name, en: name, ms: name }
+});
+const ROOM_SHOP_ITEMS = [
+  makeRoomShopItem('cushion-olive-mosaic', 'cushion', 5, '橄榄拼色抱枕'),
+  makeRoomShopItem('cushion-botanical-heraldry', 'cushion', 5, '金叶刺绣抱枕'),
+  makeRoomShopItem('cushion-terracotta-ripple', 'cushion', 5, '陶土波纹抱枕'),
+  makeRoomShopItem('cushion-indigo-arc', 'cushion', 5, '靛蓝弧线抱枕'),
+  makeRoomShopItem('cushion-rust-terrace', 'cushion', 5, '赤陶阶梯抱枕'),
+  makeRoomShopItem('cushion-plum-pebble', 'cushion', 5, '梅子卵石抱枕'),
+  makeRoomShopItem('cushion-cobalt-weave', 'cushion', 5, '钴蓝编织抱枕'),
+  makeRoomShopItem('cushion-sienna-tile', 'cushion', 5, '赭石拼砖抱枕'),
+  makeRoomShopItem('cushion-teal-geometry', 'cushion', 5, '深青几何抱枕'),
+  makeRoomShopItem('cushion-teal-architecture', 'cushion', 5, '深青建筑抱枕'),
+  makeRoomShopItem('art-moon-clouds', 'art', 6, '云间满月'),
+  makeRoomShopItem('art-ginkgo', 'art', 6, '银杏叶影'),
+  makeRoomShopItem('art-terracotta-arch', 'art', 6, '赤陶拱形'),
+  makeRoomShopItem('art-cat-portal', 'art', 6, '月门小猫'),
+  makeRoomShopItem('art-navy-flow', 'art', 6, '深蓝流线'),
+  makeRoomShopItem('art-sage-leaves', 'art', 6, '鼠尾草叶影'),
+  makeRoomShopItem('art-mist-boat', 'art', 6, '雾水小舟'),
+  makeRoomShopItem('art-stretching-cat', 'art', 6, '拱门伸展'),
+  makeRoomShopItem('art-cloud-window', 'art', 6, '云窗'),
+  makeRoomShopItem('art-dune-path', 'art', 6, '沙丘小径'),
+  makeRoomShopItem('decor-cat-stair', 'decor', 9, '阶梯猫窝'),
+  makeRoomShopItem('decor-oak-shelf', 'decor', 8, '浅橡展示架'),
+  makeRoomShopItem('decor-moon-crescent', 'decor', 8, '月牙落地灯'),
+  makeRoomShopItem('decor-cream-cat-tree', 'decor', 9, '奶油猫爬架'),
+  makeRoomShopItem('decor-walnut-cat-tree', 'decor', 9, '胡桃木猫爬架'),
+  makeRoomShopItem('decor-tiered-cat-tree', 'decor', 9, '多层猫爬架'),
+  makeRoomShopItem('decor-space-capsule', 'decor', 10, '半透明太空舱'),
+  makeRoomShopItem('decor-parlor-palm', 'decor', 7, '袖珍椰子'),
+  makeRoomShopItem('decor-calathea', 'decor', 7, '竹芋'),
+  makeRoomShopItem('decor-walnut-cabinet', 'decor', 9, '胡桃展示柜')
 ];
-const cats = [['橘猫', '暖暖的短毛橘猫外观。'], ['灰猫', '安静的烟灰色短毛猫外观。'], ['三花', '不规则斑块的三花猫外观。']];
+const ROOM_SHOP_SLOT_COPY = {
+  cushion: { 'zh-CN': '抱枕', en: 'Cushions', ms: 'Kusyen' },
+  art: { 'zh-CN': '挂画', en: 'Wall art', ms: 'Hiasan dinding' },
+  decor: { 'zh-CN': '落地摆件', en: 'Floor decor', ms: 'Hiasan lantai' }
+};
+const ROOM_SHOP_COPY = {
+  title: { 'zh-CN': '我的房间', en: 'My room', ms: 'Ruang saya' },
+  subtitle: { 'zh-CN': '一点一点，布置成喜欢的样子', en: 'Make it feel like home', ms: 'Hias ikut cita rasa awak' },
+  owned: { 'zh-CN': '已经拥有', en: 'Owned', ms: 'Sudah dimiliki' },
+  default: { 'zh-CN': '默认款', en: 'Default', ms: 'Asal' },
+  use: { 'zh-CN': '使用', en: 'Use', ms: 'Guna' },
+  equipped: { 'zh-CN': '使用中', en: 'In use', ms: 'Sedang digunakan' },
+  insufficient: { 'zh-CN': '小鱼干还不够哦', en: 'Not enough fish treats yet', ms: 'Snek ikan belum cukup' }
+};
+let roomShopNotice = '';
+function roomShopText(group, key) { return group[key]?.[state.locale] || group[key]?.['zh-CN'] || ''; }
+function roomShopItem(itemId) { return ROOM_SHOP_ITEMS.find(item => item.id === itemId); }
+function roomShopItemName(item) { return item.name[state.locale] || item.name['zh-CN']; }
 const catActions = {
   idle: { source: '/videos/cat/scene-figure-layout-controls/sit-idle-loop.mp4', duration: 5090 },
   blink: { source: '/videos/cat/scene-figure-layout-controls/sit-blink.mp4', duration: 5090 },
@@ -254,7 +338,7 @@ const FOCUS_NOTIFICATION_ID = 1001;
 const REMINDER_NOTIFICATION_BASE = 200000;
 const app = document.querySelector('#app');
 const roomArtFrame = new Image();
-roomArtFrame.src = '/images/cat-room/sofa-rug-focus-figure-layout-controls-v1.png';
+roomArtFrame.src = '/images/cat-room/sofa-rug-clean-room-v1.png';
 let ticker;
 let visibleDueReminderKey = null;
 let catPauseTimer;
@@ -1250,7 +1334,7 @@ function renderReminderDrawer() {
   const sheetLabel = state.reminderView === 'overview' ? 'aria-labelledby="remindersTitle"' : 'aria-label="提醒列表"';
   return `<aside class="reminders-drawer ${state.remindersOpen ? 'open' : ''}" id="remindersDrawer" aria-hidden="${state.remindersOpen ? 'false' : 'true'}"><section class="reminders-sheet ${state.reminderView === 'overview' ? '' : 'is-detail'}" ${sheetLabel}><header class="reminders-head">${heading}${state.reminderView === 'overview' ? '<button class="close-button" id="closeReminders" type="button" aria-label="关闭提醒">×</button>' : ''}</header>${body}${addButton}${composer}</section></aside>`;
 }
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, focusRecords: state.focusRecords, reminders: state.reminders, completedSubtasks: state.completedSubtasks, reminderLastTriggeredAt: state.reminderLastTriggeredAt, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume, locale: state.locale, ownerName: state.ownerName, ownerNameLocked: state.ownerNameLocked, catName: state.catName, catNameLocked: state.catNameLocked, birthday: state.birthday, birthdayUpdatedAt: state.birthdayUpdatedAt })); }
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ fish: state.fish, focusRecords: state.focusRecords, reminders: state.reminders, completedSubtasks: state.completedSubtasks, reminderLastTriggeredAt: state.reminderLastTriggeredAt, active: state.active, duration: state.duration, remaining: state.remaining, endsAt: state.endsAt, purpose: state.purpose, musicVolume: state.musicVolume, catVolume: state.catVolume, locale: state.locale, ownerName: state.ownerName, ownerNameLocked: state.ownerNameLocked, catName: state.catName, catNameLocked: state.catNameLocked, birthday: state.birthday, birthdayUpdatedAt: state.birthdayUpdatedAt, roomShopOwned: state.roomShopOwned, roomShopEquipped: state.roomShopEquipped, roomShopTestGrantV1: state.roomShopTestGrantV1 })); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
 function settlementCopyLayout(message) {
   const length = [...message].length;
@@ -1275,6 +1359,61 @@ function renderCatInteractionZones() {
   </div>`;
 }
 
+function renderRoomShopLayer() {
+  return ROOM_SHOP_ITEMS
+    .filter(item => state.roomShopEquipped[item.slot] === item.id)
+    .map(item => `<img class="room-shop-scene-item ${item.clip}" src="${item.asset}" alt="" aria-hidden="true">`)
+    .join('');
+}
+
+function renderRoomShopDrawer() {
+  const product = item => {
+    const owned = state.roomShopOwned.includes(item.id);
+    const equipped = state.roomShopEquipped[item.slot] === item.id;
+    const label = equipped ? roomShopText(ROOM_SHOP_COPY, 'equipped') : owned ? roomShopText(ROOM_SHOP_COPY, 'use') : `${item.price}`;
+    const action = equipped ? 'disabled' : owned ? 'equip' : 'buy';
+    return `<article class="room-shop-product"><span class="room-shop-product-preview ${item.clip}" style="background-image:url('${item.preview}')" aria-hidden="true"></span><div><h2>${roomShopItemName(item)}</h2><p>${owned ? roomShopText(ROOM_SHOP_COPY, 'owned') : `${item.price} ${state.locale === 'zh-CN' ? '条小鱼干' : state.locale === 'ms' ? 'snek ikan' : 'fish treats'}`}</p></div><button type="button" data-room-shop-action="${action}" data-room-shop-item="${item.id}" ${equipped ? 'disabled' : ''}>${!owned && !equipped ? '<img src="/icons/fish-simple.svg" alt="">' : ''}<span>${label}</span></button></article>`;
+  };
+  const slot = slotId => {
+    const items = ROOM_SHOP_ITEMS.filter(candidate => candidate.slot === slotId);
+    const equipped = !state.roomShopEquipped[slotId];
+    return `<section class="shop-section room-shop-section"><div class="section-title"><span>${roomShopText(ROOM_SHOP_SLOT_COPY, slotId)}</span></div><div class="collection-list room-shop-list"><article class="room-shop-product"><span class="room-shop-product-preview is-default" aria-hidden="true"></span><div><h2>${roomShopText(ROOM_SHOP_COPY, 'default')}</h2><p>${equipped ? roomShopText(ROOM_SHOP_COPY, 'equipped') : ''}</p></div><button type="button" data-room-shop-action="default" data-room-shop-slot="${slotId}" ${equipped ? 'disabled' : ''}><span>${equipped ? roomShopText(ROOM_SHOP_COPY, 'equipped') : roomShopText(ROOM_SHOP_COPY, 'use')}</span></button></article>${items.map(product).join('')}</div></section>`;
+  };
+  return `<div class="drawer-head"><div><p>${roomShopText(ROOM_SHOP_COPY, 'title')}</p><h1>${roomShopText(ROOM_SHOP_COPY, 'subtitle')}</h1></div><button class="close-button" id="closeCollection" type="button" aria-label="关闭商城">x</button></div><div class="room-shop-wallet"><img src="/icons/fish-simple.svg" alt=""><b>${state.fish}</b></div>${slot('cushion')}${slot('art')}${slot('decor')}<p class="room-shop-notice" aria-live="polite">${roomShopNotice}</p>`;
+}
+
+function updateRoomShop() {
+  const layer = document.querySelector('#roomShopLayer');
+  if (layer) layer.innerHTML = renderRoomShopLayer();
+  const drawer = document.querySelector('#collectionDrawer .drawer-sheet');
+  if (drawer) drawer.innerHTML = renderRoomShopDrawer();
+  const fishCount = document.querySelector('.shop-top-button .fish-count b');
+  if (fishCount) fishCount.textContent = state.fish;
+  bindRoomShopControls();
+}
+
+function bindRoomShopControls() {
+  document.querySelector('#closeCollection')?.addEventListener('click', closeCollection);
+  document.querySelectorAll('[data-room-shop-action]').forEach(button => button.addEventListener('click', () => {
+    const item = roomShopItem(button.dataset.roomShopItem);
+    const slot = button.dataset.roomShopSlot || item?.slot;
+    const action = button.dataset.roomShopAction;
+    roomShopNotice = '';
+    if (action === 'default') state.roomShopEquipped[slot] = null;
+    if (action === 'equip' && item) state.roomShopEquipped[item.slot] = item.id;
+    if (action === 'buy' && item) {
+      if (state.fish < item.price) roomShopNotice = roomShopText(ROOM_SHOP_COPY, 'insufficient');
+      else {
+        state.fish -= item.price;
+        state.roomShopOwned.push(item.id);
+        state.roomShopEquipped[item.slot] = item.id;
+      }
+    }
+    save();
+    updateRoomShop();
+  }));
+}
+
 function render() {
   document.documentElement.lang = localeTag();
   document.documentElement.dataset.locale = state.locale;
@@ -1295,13 +1434,13 @@ function render() {
       : `<div class="timer-setup"><div class="timer-row"><button class="duration-button" id="editDuration" type="button" aria-label="设置专注时长"><strong>${formatTime(state.duration)}</strong></button><button class="purpose-button" id="editPurpose" type="button" aria-label="填写本次专注内容" title="填写本次专注内容"><img class="note-icon" src="/icons/notebook-pen.svg" alt=""></button></div><p class="focus-title">${escapeHtml(state.purpose || copy('focus'))}</p>${state.editingDuration ? `<form class="inline-editor" id="durationForm"><label>分钟<input id="durationInput" type="number" min="1" max="180" value="${Math.round(state.duration / 60)}" inputmode="numeric" required></label><button type="submit">确定</button></form>` : ''}${state.editingPurpose ? `<form class="inline-editor purpose-editor" id="purposeForm"><input id="purposeInput" type="text" maxlength="24" value="${escapeHtml(state.purpose)}" placeholder="例如：整理今天的方案"><button type="submit">确定</button></form>` : ''}<button class="start-button" id="startFocus" type="button"><span>开始</span></button></div>`;
   app.innerHTML = `<section class="room ${state.active ? 'is-focusing' : ''} ${isCloseView ? 'is-close' : ''}">
     <div class="room-art" aria-hidden="true"></div><div class="focus-art" aria-hidden="true"></div><div class="sun-wash" aria-hidden="true"></div>
-    ${showEntryCat ? `<div class="cat-video-layer" aria-hidden="true"><video class="cat-animation is-active" src="${catActions.idle.source}" autoplay loop muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-animation" muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-chroma-source" id="catChromaSource" playsinline preload="auto"></video><canvas class="cat-chroma-canvas" id="catChromaCanvas"></canvas></div>${renderCatInteractionZones()}` : ''}
-    <header class="topbar"><button class="top-icon-button shop-top-button" id="openCollection" type="button" aria-label="打开商城，拥有 ${state.fish} 条小鱼干"><img src="/icons/shopping-bag.svg" alt=""><span class="fish-count"><img src="/icons/fish-simple.svg" alt="">x <b>${state.fish}</b></span></button><button class="top-icon-button settings-top-button" id="openSettings" type="button" aria-label="打开系统设置"><img src="/icons/settings.svg" alt=""></button></header>
+    ${showEntryCat ? `<div class="cat-video-layer" aria-hidden="true"><video class="cat-animation is-active" src="${catActions.idle.source}" autoplay loop muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-animation" muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-chroma-source" id="catChromaSource" playsinline preload="auto"></video><canvas class="cat-chroma-canvas" id="catChromaCanvas"></canvas></div><div class="room-shop-scene-layer" id="roomShopLayer" aria-hidden="true">${renderRoomShopLayer()}</div>${renderCatInteractionZones()}` : ''}
+    <header class="topbar"><button class="top-icon-button shop-top-button" id="openCollection" type="button" aria-label="打开商城，拥有 ${state.fish} 条小鱼干"><img src="/icons/shopping-cart.svg" alt=""><span class="fish-count"><img src="/icons/fish-simple.svg" alt="">x <b>${state.fish}</b></span></button><button class="top-icon-button settings-top-button" id="openSettings" type="button" aria-label="打开系统设置"><img src="/icons/settings.svg" alt=""></button></header>
     ${!state.active && state.view === 'rug' ? `<button class="stats-button" id="openStats" type="button" aria-label="查看专注统计" title="专注统计"><img src="/icons/paw-chart.svg" alt=""></button><button class="reminders-button" id="openReminders" type="button" aria-label="${activeDueReminderCount ? `打开提醒事项，${activeDueReminderCount} 个已提醒未完成任务` : '打开提醒事项'}" title="提醒事项"><img src="/icons/reminder-list.svg" alt="">${dueReminderBadge}</button><button class="reminder-bell ${activeReminderReactionId && !reminderBellAcknowledged ? 'is-ringing' : ''}" id="openReminderBell" type="button" aria-label="${activeDueReminder ? `查看到时提醒：${escapeHtml(reminderTitleLabel(activeDueReminder.title))}` : '打开提醒事项'}" title="提醒"><img src="/icons/bell.svg" alt=""></button>` : ''}
     <section class="focus-panel" aria-live="polite">${focusControl}<p class="room-note">${state.note}</p></section>
     ${state.active ? '<div class="finish-slider" id="finishSlider"><div class="finish-track"><span class="finish-track-copy">右滑放弃</span><span class="finish-track-chevron" aria-hidden="true">››</span><input id="finishFocus" type="range" min="0" max="100" value="0" aria-label="向右滑动铃铛提前结束专注"></div></div>' : ''}
     ${renderFocusSettlement()}
-    <aside class="collection-drawer" id="collectionDrawer" aria-hidden="true"><div class="drawer-sheet"><div class="drawer-head"><div><p>我的收藏</p><h1>慢慢把房间填满</h1></div><button class="close-button" id="closeCollection" type="button" aria-label="关闭收藏">x</button></div><section class="owned-section"><span class="section-label">已经拥有</span><div class="owned-items"><span>虎斑白猫</span><span>圆地毯</span></div></section><section class="shop-section"><div class="section-title"><span>互动家具</span><small>售价待定</small></div><div class="collection-list">${furniture.map(([name, detail]) => `<article><div class="item-icon">+</div><div><h2>${name}</h2><p>${detail}</p></div><span>家具</span></article>`).join('')}</div></section><section class="shop-section"><div class="section-title"><span>更多猫咪</span><small>售价待定</small></div><div class="collection-list">${cats.map(([name, detail]) => `<article><div class="item-icon">+</div><div><h2>${name}</h2><p>${detail}</p></div><span>外观</span></article>`).join('')}</div></section><p class="drawer-foot">家具会带来新的猫咪日常；具体价格等内容数量确定后再一起调整。</p></div></aside>
+    <aside class="collection-drawer" id="collectionDrawer" aria-hidden="true"><div class="drawer-sheet">${renderRoomShopDrawer()}</div></aside>
     <aside class="settings-drawer ${state.settingsOpen ? 'open' : ''}" id="settingsDrawer" aria-hidden="${state.settingsOpen ? 'false' : 'true'}"><section class="settings-sheet" aria-label="${copy('settings')}"><header class="settings-head"><div><p>${copy('settings')}</p></div><button class="close-button" id="closeSettings" type="button" aria-label="Close settings">x</button></header><section class="settings-section"><label class="settings-select" for="languageSelect"><span>${copy('language')}</span><select id="languageSelect"><option value="zh-CN" ${state.locale === 'zh-CN' ? 'selected' : ''}>中文</option><option value="en" ${state.locale === 'en' ? 'selected' : ''}>English</option><option value="ms" ${state.locale === 'ms' ? 'selected' : ''}>Bahasa Melayu</option></select></label><div class="sound-setting"><div><label for="musicVolume">${copy('music')}</label><output id="musicVolumeValue">${state.musicVolume}%</output></div><input id="musicVolume" type="range" min="0" max="100" value="${state.musicVolume}" aria-label="${copy('music')}"></div><div class="sound-setting"><div><label for="catVolume">${copy('catSound')}</label><output id="catVolumeValue">${state.catVolume}%</output></div><input id="catVolume" type="range" min="0" max="100" value="${state.catVolume}" aria-label="${copy('catSound')}"></div></section><section class="settings-section profile-section"><h2>${copy('profile')}</h2><label class="settings-profile-field" for="ownerName"><span>${copy('nickname')}</span><input id="ownerName" type="text" maxlength="24" value="${escapeHtml(state.ownerName)}"></label><label class="settings-profile-field" for="birthday"><span>${copy('birthday')}</span><input id="birthday" type="text" inputmode="numeric" maxlength="10" value="${escapeHtml(state.birthday)}" placeholder="YYYY-MM-DD"></label><p class="settings-hint">${copy('birthdayHint')}</p></section></aside>
     ${renderReminderDrawer()}
     ${renderStatsDrawer()}
@@ -1368,7 +1507,7 @@ function render() {
     render();
   });
   document.querySelector('#openCollection')?.addEventListener('click', openCollection);
-  document.querySelector('#closeCollection')?.addEventListener('click', closeCollection);
+  bindRoomShopControls();
   document.querySelector('#collectionDrawer')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeCollection(); });
   document.querySelector('#openSettings')?.addEventListener('click', openSettings);
   document.querySelector('#closeSettings')?.addEventListener('click', closeSettings);
