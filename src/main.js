@@ -328,7 +328,7 @@ const catActions = {
   bellySleeping: { source: '/videos/cat/scene-figure-layout-controls/belly-loop.mp4', duration: 5040 },
   bellyWake: { source: '/videos/cat/scene-figure-layout-controls/belly-wake.mp4', sound: '/audio/belly-wake-meow.mp4', duration: 6080 },
   pawScratch: { source: '/videos/cat/scene-figure-layout-controls/paw-scratch-composited.mp4', sound: '/audio/paw-scratch-meow.mp3', duration: 6040, composited: true },
-  headPet: { source: '/videos/cat/scene-figure-layout-controls/head-pet-composited.mp4', duration: 8040, composited: true, instantEnd: true },
+  headPet: { source: '/videos/cat/scene-figure-layout-controls/head-pet-edge-trial-v3.mp4', duration: 8040, composited: true, instantEnd: true },
   bodyScratch: { source: '/videos/cat/scene-figure-layout-controls/body-scratch-composited.mp4', useVideoAudio: true, duration: 4040, composited: true, instantEnd: true, stopAt: 2.2 },
   mouseLook: { source: '/videos/cat/scene-figure-layout-controls/mouse-look-composited.mp4', duration: 5030, composited: true, instantEnd: true }
 };
