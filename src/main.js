@@ -316,21 +316,21 @@ function roomShopText(group, key) { return group[key]?.[state.locale] || group[k
 function roomShopItem(itemId) { return ROOM_SHOP_ITEMS.find(item => item.id === itemId); }
 function roomShopItemName(item) { return item.name[state.locale] || item.name['zh-CN']; }
 const catActions = {
-  idle: { source: '/videos/cat/unified-head-v3/sit-idle-loop.mp4', duration: 5090 },
-  blink: { source: '/videos/cat/unified-head-v3/sit-blink.mp4', duration: 5090 },
-  closer: { source: '/videos/cat/unified-head-v3/sit-closer.mp4', duration: 5090 },
-  tail: { source: '/videos/cat/unified-head-v3/sit-tail.mp4', duration: 5090 },
-  sleepDown: { source: '/videos/cat/unified-head-v3/sleep-enter.mp4', duration: 4090 },
-  sleeping: { source: '/videos/cat/unified-head-v3/prone-sleep.mp4', duration: 5090 },
-  wake: { source: '/videos/cat/unified-head-v3/stretch-wake.mp4', sound: '/audio/prone-wake-meow.mp4', duration: 8080 },
-  bellyEnter: { source: '/videos/cat/unified-head-v3/sleep-to-belly.mp4', duration: 4090 },
-  bellyReturn: { source: '/videos/cat/unified-head-v3/belly-to-sleep.mp4', duration: 4090 },
-  bellySleeping: { source: '/videos/cat/unified-head-v3/belly-loop.mp4', duration: 5040 },
-  bellyWake: { source: '/videos/cat/unified-head-v3/belly-wake.mp4', sound: '/audio/belly-wake-meow.mp4', duration: 6080 },
-  pawScratch: { source: '/videos/cat/unified-head-v3/paw-scratch-composited.mp4', sound: '/audio/paw-scratch-meow.mp3', duration: 6040, composited: true },
-  headPet: { source: '/videos/cat/scene-figure-layout-controls/head-pet-edge-trial-v3.mp4', duration: 8040, composited: true },
-  bodyScratch: { source: '/videos/cat/unified-head-v3/body-scratch-composited.mp4', useVideoAudio: true, duration: 4040, composited: true },
-  mouseLook: { source: '/videos/cat/unified-head-v3/mouse-look-composited.mp4', duration: 5030, composited: true }
+  idle: { source: '/videos/cat/transparent-v3/sit-idle-loop.webm', duration: 5090 },
+  blink: { source: '/videos/cat/transparent-v3/sit-blink.webm', duration: 5090 },
+  closer: { source: '/videos/cat/transparent-v3/sit-closer.webm', duration: 5090 },
+  tail: { source: '/videos/cat/transparent-v3/sit-tail.webm', duration: 5090 },
+  sleepDown: { source: '/videos/cat/transparent-v3/sleep-enter.webm', duration: 4090 },
+  sleeping: { source: '/videos/cat/transparent-v3/prone-sleep.webm', duration: 5090 },
+  wake: { source: '/videos/cat/transparent-v3/stretch-wake.webm', sound: '/audio/prone-wake-meow.mp4', duration: 8080 },
+  bellyEnter: { source: '/videos/cat/transparent-v3/sleep-to-belly.webm', duration: 4090 },
+  bellyReturn: { source: '/videos/cat/transparent-v3/belly-to-sleep.webm', duration: 4090 },
+  bellySleeping: { source: '/videos/cat/transparent-v3/belly-loop.webm', duration: 5040 },
+  bellyWake: { source: '/videos/cat/transparent-v3/belly-wake.webm', sound: '/audio/belly-wake-meow.mp4', duration: 6080 },
+  pawScratch: { source: '/videos/cat/transparent-v3/paw-scratch-composited.webm', sound: '/audio/paw-scratch-meow.mp3', duration: 6040, composited: true },
+  headPet: { source: '/videos/cat/transparent-v3/head-pet.webm', duration: 8040, composited: true },
+  bodyScratch: { source: '/videos/cat/transparent-v3/body-scratch-composited.webm', useVideoAudio: true, duration: 4040, composited: true },
+  mouseLook: { source: '/videos/cat/transparent-v3/mouse-look-composited.webm', duration: 5030, composited: true }
 };
 const ACTION_PAUSE_MS = 8 * 1000;
 const FOCUS_REWARD_MINIMUM_SECONDS = 25 * 60;
@@ -1362,7 +1362,12 @@ function renderCatInteractionZones() {
 function renderRoomShopLayer() {
   return ROOM_SHOP_ITEMS
     .filter(item => state.roomShopEquipped[item.slot] === item.id)
-    .map(item => `<img class="room-shop-scene-item ${item.clip}" src="${item.asset}" alt="" aria-hidden="true">`)
+    .sort((a, b) => ['decor', 'art', 'cushion'].indexOf(a.slot) - ['decor', 'art', 'cushion'].indexOf(b.slot))
+    .map(item => {
+      if (item.slot === 'art') return `<svg class="room-shop-scene-item is-art" viewBox="0 0 941 1672" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><svg x="780" y="145" width="103" height="156" viewBox="770 125 117 160" preserveAspectRatio="xMidYMid slice"><image href="${item.preview}" width="941" height="1672"/></svg></svg>`;
+      if (item.slot === 'decor') return `<svg class="room-shop-scene-item is-decor" viewBox="0 0 941 1672" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><filter id="decor-feather"><feGaussianBlur stdDeviation="7"/></filter><mask id="decor-region"><path d="M-30-30H660V540H104V625H-30Z" fill="white" filter="url(#decor-feather)"/></mask></defs><image href="${item.preview}" width="941" height="1672" mask="url(#decor-region)"/></svg>`;
+      return `<img class="room-shop-scene-item ${item.clip}" src="${item.asset}" alt="" aria-hidden="true">`;
+    })
     .join('');
 }
 
@@ -1382,9 +1387,18 @@ function renderRoomShopDrawer() {
   return `<div class="drawer-head"><div><p>${roomShopText(ROOM_SHOP_COPY, 'title')}</p><h1>${roomShopText(ROOM_SHOP_COPY, 'subtitle')}</h1></div><button class="close-button" id="closeCollection" type="button" aria-label="关闭商城">x</button></div><div class="room-shop-wallet"><img src="/icons/fish-simple.svg" alt=""><b>${state.fish}</b></div>${slot('cushion')}${slot('art')}${slot('decor')}<p class="room-shop-notice" aria-live="polite">${roomShopNotice}</p>`;
 }
 
-function updateRoomShop() {
+let roomShopRenderVersion = 0;
+async function updateRoomShop() {
+  const version = ++roomShopRenderVersion;
+  const markup = renderRoomShopLayer();
+  await Promise.all(ROOM_SHOP_ITEMS.filter(item => state.roomShopEquipped[item.slot] === item.id).map(item => {
+    const image = new Image();
+    image.src = item.slot === 'cushion' ? item.asset : item.preview;
+    return image.decode();
+  })).catch(() => {});
+  if (version !== roomShopRenderVersion) return;
   const layer = document.querySelector('#roomShopLayer');
-  if (layer) layer.innerHTML = renderRoomShopLayer();
+  if (layer) layer.innerHTML = markup;
   const drawer = document.querySelector('#collectionDrawer .drawer-sheet');
   if (drawer) drawer.innerHTML = renderRoomShopDrawer();
   const fishCount = document.querySelector('.shop-top-button .fish-count b');
@@ -1400,8 +1414,8 @@ function bindRoomShopControls() {
     const action = button.dataset.roomShopAction;
     roomShopNotice = '';
     if (action === 'default') state.roomShopEquipped[slot] = null;
-    if (action === 'equip' && item) state.roomShopEquipped[item.slot] = item.id;
-    if (action === 'buy' && item) {
+    if (action === 'equip' && item && state.roomShopOwned.includes(item.id)) state.roomShopEquipped[item.slot] = item.id;
+    if (action === 'buy' && item && !state.roomShopOwned.includes(item.id)) {
       if (state.fish < item.price) roomShopNotice = roomShopText(ROOM_SHOP_COPY, 'insufficient');
       else {
         state.fish -= item.price;
@@ -1417,12 +1431,13 @@ function bindRoomShopControls() {
 function render() {
   document.documentElement.lang = localeTag();
   document.documentElement.dataset.locale = state.locale;
-  // List views can rerender freely without resetting the in-progress reminder clip.
-  const preservedReminderCatLayer = activeReminderReactionId && reminderReactionPlaying
+  // UI edits must not recreate the active video and expose its loading poster.
+  const preservedReminderCatLayer = (activeCatSlot >= 0 || activeCatInteraction || reminderReactionPlaying)
     ? document.querySelector('.cat-video-layer')
     : null;
   preservedReminderCatLayer?.remove();
   const isCloseView = state.view === 'rug' || state.view === 'reward';
+  const resumeCatVideos = [...(preservedReminderCatLayer?.querySelectorAll('video') || [])].filter(video => !video.paused && !video.ended);
   const showEntryCat = state.view === 'rug' || state.view === 'reward';
   const activeDueReminder = !state.active && state.view === 'rug' ? dueReminder() : null;
   const activeDueReminderCount = !state.active && state.view === 'rug' ? dueReminderCount() : 0;
@@ -1435,7 +1450,7 @@ function render() {
   app.innerHTML = `<section class="room ${state.active ? 'is-focusing' : ''} ${isCloseView ? 'is-close' : ''}">
     <div class="room-art" aria-hidden="true"></div><div class="focus-art" aria-hidden="true"></div><div class="sun-wash" aria-hidden="true"></div>
     <div class="room-shop-scene-layer" id="roomShopLayer" aria-hidden="true">${renderRoomShopLayer()}</div>
-    ${showEntryCat ? `<div class="cat-video-layer" aria-hidden="true"><video class="cat-animation is-active" src="${catActions.idle.source}" autoplay loop muted playsinline preload="auto" poster="/videos/cat/unified-head-v3/idle-poster.png"></video><video class="cat-animation" muted playsinline preload="auto" poster="/videos/cat/unified-head-v3/idle-poster.png"></video><video class="cat-chroma-source" id="catChromaSource" playsinline preload="auto"></video><canvas class="cat-chroma-canvas" id="catChromaCanvas"></canvas></div>${renderCatInteractionZones()}` : ''}
+    ${showEntryCat ? `<div class="cat-video-layer" aria-hidden="true"><video class="cat-animation is-active" src="${catActions.idle.source}" autoplay loop muted playsinline preload="auto" poster="/videos/cat/transparent-v3/idle-poster.png"></video><video class="cat-animation" muted playsinline preload="auto" poster="/videos/cat/transparent-v3/idle-poster.png"></video><video class="cat-chroma-source" id="catChromaSource" playsinline preload="auto"></video><canvas class="cat-chroma-canvas" id="catChromaCanvas"></canvas></div>${renderCatInteractionZones()}` : ''}
     <header class="topbar"><button class="top-icon-button shop-top-button" id="openCollection" type="button" aria-label="打开商城，拥有 ${state.fish} 条小鱼干"><img src="/icons/shopping-cart.svg" alt=""><span class="fish-count"><img src="/icons/fish-simple.svg" alt="">x <b>${state.fish}</b></span></button><button class="top-icon-button settings-top-button" id="openSettings" type="button" aria-label="打开系统设置"><img src="/icons/settings.svg" alt=""></button></header>
     ${!state.active && state.view === 'rug' ? `<button class="stats-button" id="openStats" type="button" aria-label="查看专注统计" title="专注统计"><img src="/icons/paw-chart.svg" alt=""></button><button class="reminders-button" id="openReminders" type="button" aria-label="${activeDueReminderCount ? `打开提醒事项，${activeDueReminderCount} 个已提醒未完成任务` : '打开提醒事项'}" title="提醒事项"><img src="/icons/reminder-list.svg" alt="">${dueReminderBadge}</button><button class="reminder-bell ${activeReminderReactionId && !reminderBellAcknowledged ? 'is-ringing' : ''}" id="openReminderBell" type="button" aria-label="${activeDueReminder ? `查看到时提醒：${escapeHtml(reminderTitleLabel(activeDueReminder.title))}` : '打开提醒事项'}" title="提醒"><img src="/icons/bell.svg" alt=""></button>` : ''}
     <section class="focus-panel" aria-live="polite">${focusControl}<p class="room-note">${state.note}</p></section>
@@ -1449,7 +1464,7 @@ function render() {
   </section>`;
   if (preservedReminderCatLayer && showEntryCat) {
     app.querySelector('.cat-video-layer')?.replaceWith(preservedReminderCatLayer);
-    activeChromaVideo?.play().catch(() => {});
+    resumeCatVideos.forEach(video => video.play().catch(() => {}));
   }
   document.title = state.locale === 'zh-CN' ? '和猫一起坐一会儿' : state.locale === 'ms' ? 'Duduk sebentar bersama si comel' : 'Sit with your cat for a while';
   const dialogReminder = state.reminders.find(reminder => reminder.id === reminderBellDialogId && !reminder.completed);
@@ -2333,15 +2348,15 @@ function render() {
   document.querySelector('#finishFocus')?.addEventListener('change', resetFinishSlider);
   if (state.editingDuration || state.editingPurpose) requestAnimationFrame(() => document.querySelector('#durationInput, #purposeInput')?.focus());
   localizeStaticInterface();
-  if (!state.active && state.view === 'rug' && !reminderReactionPlaying) startLobbySequence();
+  if (!preservedReminderCatLayer && !state.active && state.view === 'rug' && !reminderReactionPlaying) startLobbySequence();
 }
 function clearCatVideo() {
-  clearTimeout(catPauseTimer);
-  clearTimeout(catPlaybackTimer);
   document.querySelector('.cat-transition-frame')?.remove();
   activeCatInteraction = null;
   clearTimeout(catChromaSettleTimer);
   clearTimeout(catActionSoundTimer);
+  clearTimeout(catPauseTimer);
+  clearTimeout(catPlaybackTimer);
   clearTimeout(catInteractionResumeTimer);
   clearTimeout(catSleepDrawTimer);
   clearTimeout(reminderReactionStopTimer);

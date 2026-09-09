@@ -1,0 +1,16 @@
+{
+  "transparency": {
+    "wall": 0,
+    "cat": 255
+  },
+  "staticWall": true,
+  "preservedVideoOnUIEdit": true,
+  "purchased": 30,
+  "fish": 500,
+  "restored": {
+    "cushion": "cushion-teal-architecture",
+    "art": "art-dune-path",
+    "decor": "decor-walnut-cabinet"
+  },
+  "errors": []
+}

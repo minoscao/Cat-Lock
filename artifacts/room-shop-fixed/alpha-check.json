@@ -1,0 +1,92 @@
+[
+  {
+    "url": "/videos/cat/transparent-v3/sit-idle-loop.webm",
+    "wall": 0,
+    "opaqueCat": 185454,
+    "duration": 5.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/sit-blink.webm",
+    "wall": 0,
+    "opaqueCat": 185478,
+    "duration": 5.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/sit-closer.webm",
+    "wall": 0,
+    "opaqueCat": 185217,
+    "duration": 5.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/sit-tail.webm",
+    "wall": 0,
+    "opaqueCat": 185531,
+    "duration": 5.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/sleep-enter.webm",
+    "wall": 0,
+    "opaqueCat": 186148,
+    "duration": 4.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/prone-sleep.webm",
+    "wall": 0,
+    "opaqueCat": 133474,
+    "duration": 5.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/stretch-wake.webm",
+    "wall": 0,
+    "opaqueCat": 133264,
+    "duration": 8.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/sleep-to-belly.webm",
+    "wall": 0,
+    "opaqueCat": 133594,
+    "duration": 4.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/belly-to-sleep.webm",
+    "wall": 0,
+    "opaqueCat": 129374,
+    "duration": 4.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/belly-loop.webm",
+    "wall": 0,
+    "opaqueCat": 129365,
+    "duration": 5.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/belly-wake.webm",
+    "wall": 0,
+    "opaqueCat": 129074,
+    "duration": 6.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/paw-scratch-composited.webm",
+    "wall": 0,
+    "opaqueCat": 185502,
+    "duration": 6.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/head-pet.webm",
+    "wall": 0,
+    "opaqueCat": 185434,
+    "duration": 8.04
+  },
+  {
+    "url": "/videos/cat/transparent-v3/body-scratch-composited.webm",
+    "wall": 0,
+    "opaqueCat": 185556,
+    "duration": 4.025
+  },
+  {
+    "url": "/videos/cat/transparent-v3/mouse-look-composited.webm",
+    "wall": 0,
+    "opaqueCat": 185685,
+    "duration": 5.04
+  }
+]

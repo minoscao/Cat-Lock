@@ -29,7 +29,7 @@ fs.mkdirSync(output, { recursive: true });
       await page.waitForFunction(() => document.querySelector('.cat-animation.is-active')?.currentTime > .1);
     };
     const idleReturned = async () => {
-      await page.waitForFunction(() => !document.querySelector('#catChromaCanvas').classList.contains('is-active') && document.querySelector('.cat-animation.is-active')?.currentSrc.includes('/sit-idle-loop.mp4'));
+      await page.waitForFunction(() => !document.querySelector('#catChromaCanvas').classList.contains('is-active') && document.querySelector('.cat-animation.is-active')?.currentSrc.includes('/sit-idle-loop.webm'));
       await page.waitForFunction(() => !document.querySelector('.cat-transition-frame'));
       assert.equal(await page.locator('.cat-animation.is-active').count(), 1);
     };
