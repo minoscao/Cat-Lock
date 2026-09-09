@@ -261,8 +261,8 @@ const makeRoomShopItem = (id, slot, price, name) => ({
   slot,
   price,
   clip: `is-${slot === 'art' ? 'art' : slot === 'decor' ? 'decor' : 'cushion'}`,
-  asset: `/images/shop/${id}-plate-v1.png`,
-  preview: `/images/shop/${id}-source-v1.png`,
+  asset: `/images/shop/${id}-plate-v1.png?v=20260909-clean-2`,
+  preview: `/images/shop/${id}-source-v1.png?v=20260909-clean-2`,
   name: { 'zh-CN': name, en: name, ms: name }
 });
 const ROOM_SHOP_ITEMS = [
