@@ -1,0 +1,95 @@
+{
+  "clips": [
+    {
+      "name": "head-pet-edge-trial-v3",
+      "frames": "201",
+      "duration": 8.04,
+      "decode": "pass"
+    },
+    {
+      "name": "belly-loop",
+      "frames": "126",
+      "duration": 5.04,
+      "decode": "pass"
+    },
+    {
+      "name": "belly-to-sleep",
+      "frames": "101",
+      "duration": 4.04,
+      "decode": "pass"
+    },
+    {
+      "name": "belly-wake",
+      "frames": "151",
+      "duration": 6.04,
+      "decode": "pass"
+    },
+    {
+      "name": "body-scratch-composited",
+      "frames": "101",
+      "duration": 4.04,
+      "decode": "pass"
+    },
+    {
+      "name": "mouse-look-composited",
+      "frames": "126",
+      "duration": 5.04,
+      "decode": "pass"
+    },
+    {
+      "name": "paw-scratch-composited",
+      "frames": "150",
+      "duration": 6.0,
+      "decode": "pass"
+    },
+    {
+      "name": "prone-sleep",
+      "frames": "126",
+      "duration": 5.04,
+      "decode": "pass"
+    },
+    {
+      "name": "sit-blink",
+      "frames": "126",
+      "duration": 5.04,
+      "decode": "pass"
+    },
+    {
+      "name": "sit-closer",
+      "frames": "126",
+      "duration": 5.04,
+      "decode": "pass"
+    },
+    {
+      "name": "sit-idle-loop",
+      "frames": "126",
+      "duration": 5.04,
+      "decode": "pass"
+    },
+    {
+      "name": "sit-tail",
+      "frames": "126",
+      "duration": 5.04,
+      "decode": "pass"
+    },
+    {
+      "name": "sleep-enter",
+      "frames": "101",
+      "duration": 4.04,
+      "decode": "pass"
+    },
+    {
+      "name": "sleep-to-belly",
+      "frames": "101",
+      "duration": 4.04,
+      "decode": "pass"
+    },
+    {
+      "name": "stretch-wake",
+      "frames": "201",
+      "duration": 8.04,
+      "decode": "pass"
+    }
+  ],
+  "reverse_first_frame_error": 0.490717390126542
+}

@@ -316,21 +316,21 @@ function roomShopText(group, key) { return group[key]?.[state.locale] || group[k
 function roomShopItem(itemId) { return ROOM_SHOP_ITEMS.find(item => item.id === itemId); }
 function roomShopItemName(item) { return item.name[state.locale] || item.name['zh-CN']; }
 const catActions = {
-  idle: { source: '/videos/cat/scene-figure-layout-controls/sit-idle-loop.mp4', duration: 5090 },
-  blink: { source: '/videos/cat/scene-figure-layout-controls/sit-blink.mp4', duration: 5090 },
-  closer: { source: '/videos/cat/scene-figure-layout-controls/sit-closer.mp4', duration: 5090 },
-  tail: { source: '/videos/cat/scene-figure-layout-controls/sit-tail.mp4', duration: 5090 },
-  sleepDown: { source: '/videos/cat/scene-figure-layout-controls/sleep-enter.mp4', duration: 4090 },
-  sleeping: { source: '/videos/cat/scene-figure-layout-controls/prone-sleep.mp4', duration: 5090 },
-  wake: { source: '/videos/cat/scene-figure-layout-controls/stretch-wake.mp4', sound: '/audio/prone-wake-meow.mp4', duration: 8080 },
-  bellyEnter: { source: '/videos/cat/scene-figure-layout-controls/sleep-to-belly.mp4', duration: 4090 },
-  bellyReturn: { source: '/videos/cat/scene-figure-layout-controls/sleep-to-belly.mp4', duration: 4090, reverse: true },
-  bellySleeping: { source: '/videos/cat/scene-figure-layout-controls/belly-loop.mp4', duration: 5040 },
-  bellyWake: { source: '/videos/cat/scene-figure-layout-controls/belly-wake.mp4', sound: '/audio/belly-wake-meow.mp4', duration: 6080 },
-  pawScratch: { source: '/videos/cat/scene-figure-layout-controls/paw-scratch-composited.mp4', sound: '/audio/paw-scratch-meow.mp3', duration: 6040, composited: true },
+  idle: { source: '/videos/cat/unified-head-v3/sit-idle-loop.mp4', duration: 5090 },
+  blink: { source: '/videos/cat/unified-head-v3/sit-blink.mp4', duration: 5090 },
+  closer: { source: '/videos/cat/unified-head-v3/sit-closer.mp4', duration: 5090 },
+  tail: { source: '/videos/cat/unified-head-v3/sit-tail.mp4', duration: 5090 },
+  sleepDown: { source: '/videos/cat/unified-head-v3/sleep-enter.mp4', duration: 4090 },
+  sleeping: { source: '/videos/cat/unified-head-v3/prone-sleep.mp4', duration: 5090 },
+  wake: { source: '/videos/cat/unified-head-v3/stretch-wake.mp4', sound: '/audio/prone-wake-meow.mp4', duration: 8080 },
+  bellyEnter: { source: '/videos/cat/unified-head-v3/sleep-to-belly.mp4', duration: 4090 },
+  bellyReturn: { source: '/videos/cat/unified-head-v3/belly-to-sleep.mp4', duration: 4090 },
+  bellySleeping: { source: '/videos/cat/unified-head-v3/belly-loop.mp4', duration: 5040 },
+  bellyWake: { source: '/videos/cat/unified-head-v3/belly-wake.mp4', sound: '/audio/belly-wake-meow.mp4', duration: 6080 },
+  pawScratch: { source: '/videos/cat/unified-head-v3/paw-scratch-composited.mp4', sound: '/audio/paw-scratch-meow.mp3', duration: 6040, composited: true },
   headPet: { source: '/videos/cat/scene-figure-layout-controls/head-pet-edge-trial-v3.mp4', duration: 8040, composited: true, instantEnd: true },
-  bodyScratch: { source: '/videos/cat/scene-figure-layout-controls/body-scratch-composited.mp4', useVideoAudio: true, duration: 4040, composited: true, instantEnd: true, stopAt: 2.2 },
-  mouseLook: { source: '/videos/cat/scene-figure-layout-controls/mouse-look-composited.mp4', duration: 5030, composited: true, instantEnd: true }
+  bodyScratch: { source: '/videos/cat/unified-head-v3/body-scratch-composited.mp4', useVideoAudio: true, duration: 4040, composited: true, instantEnd: true, stopAt: 2.2 },
+  mouseLook: { source: '/videos/cat/unified-head-v3/mouse-look-composited.mp4', duration: 5030, composited: true, instantEnd: true }
 };
 const ACTION_PAUSE_MS = 8 * 1000;
 const FOCUS_REWARD_MINIMUM_SECONDS = 25 * 60;
@@ -1435,7 +1435,7 @@ function render() {
   app.innerHTML = `<section class="room ${state.active ? 'is-focusing' : ''} ${isCloseView ? 'is-close' : ''}">
     <div class="room-art" aria-hidden="true"></div><div class="focus-art" aria-hidden="true"></div><div class="sun-wash" aria-hidden="true"></div>
     <div class="room-shop-scene-layer" id="roomShopLayer" aria-hidden="true">${renderRoomShopLayer()}</div>
-    ${showEntryCat ? `<div class="cat-video-layer" aria-hidden="true"><video class="cat-animation is-active" src="${catActions.idle.source}" autoplay loop muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-animation" muted playsinline preload="auto" poster="/images/cat-room/figure-layout-controls-idle-poster.png"></video><video class="cat-chroma-source" id="catChromaSource" playsinline preload="auto"></video><canvas class="cat-chroma-canvas" id="catChromaCanvas"></canvas></div>${renderCatInteractionZones()}` : ''}
+    ${showEntryCat ? `<div class="cat-video-layer" aria-hidden="true"><video class="cat-animation is-active" src="${catActions.idle.source}" autoplay loop muted playsinline preload="auto" poster="/videos/cat/unified-head-v3/idle-poster.png"></video><video class="cat-animation" muted playsinline preload="auto" poster="/videos/cat/unified-head-v3/idle-poster.png"></video><video class="cat-chroma-source" id="catChromaSource" playsinline preload="auto"></video><canvas class="cat-chroma-canvas" id="catChromaCanvas"></canvas></div>${renderCatInteractionZones()}` : ''}
     <header class="topbar"><button class="top-icon-button shop-top-button" id="openCollection" type="button" aria-label="打开商城，拥有 ${state.fish} 条小鱼干"><img src="/icons/shopping-cart.svg" alt=""><span class="fish-count"><img src="/icons/fish-simple.svg" alt="">x <b>${state.fish}</b></span></button><button class="top-icon-button settings-top-button" id="openSettings" type="button" aria-label="打开系统设置"><img src="/icons/settings.svg" alt=""></button></header>
     ${!state.active && state.view === 'rug' ? `<button class="stats-button" id="openStats" type="button" aria-label="查看专注统计" title="专注统计"><img src="/icons/paw-chart.svg" alt=""></button><button class="reminders-button" id="openReminders" type="button" aria-label="${activeDueReminderCount ? `打开提醒事项，${activeDueReminderCount} 个已提醒未完成任务` : '打开提醒事项'}" title="提醒事项"><img src="/icons/reminder-list.svg" alt="">${dueReminderBadge}</button><button class="reminder-bell ${activeReminderReactionId && !reminderBellAcknowledged ? 'is-ringing' : ''}" id="openReminderBell" type="button" aria-label="${activeDueReminder ? `查看到时提醒：${escapeHtml(reminderTitleLabel(activeDueReminder.title))}` : '打开提醒事项'}" title="提醒"><img src="/icons/bell.svg" alt=""></button>` : ''}
     <section class="focus-panel" aria-live="polite">${focusControl}<p class="room-note">${state.note}</p></section>
@@ -2686,8 +2686,8 @@ function playCatVideo(source, onEnded, loop = false, playSound = true) {
   nextVideo.onloadeddata = () => {
     if (activeCatPlayback !== playbackId) return;
     nextVideo.loop = loop;
-    nextVideo.playbackRate = action?.reverse ? -1 : 1;
-    nextVideo.currentTime = action?.reverse ? Math.max(0, nextVideo.duration - .03) : 0;
+    nextVideo.playbackRate = 1;
+    nextVideo.currentTime = 0;
     nextVideo.onended = () => {
       if (activeCatPlayback !== playbackId) return;
       clearTimeout(catPlaybackTimer);

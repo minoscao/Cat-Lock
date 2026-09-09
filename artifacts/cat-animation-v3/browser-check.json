@@ -1,0 +1,126 @@
+{
+  "browser": "Edge/Playwright (Browser plugin not available)",
+  "clips": [
+    {
+      "name": "idle",
+      "width": 942,
+      "height": 1672,
+      "duration": 5.04,
+      "ended": true,
+      "luminance": 4773162
+    },
+    {
+      "name": "blink",
+      "width": 942,
+      "height": 1672,
+      "duration": 5.04,
+      "ended": true,
+      "luminance": 4776896
+    },
+    {
+      "name": "closer",
+      "width": 942,
+      "height": 1672,
+      "duration": 5.04,
+      "ended": true,
+      "luminance": 4789661
+    },
+    {
+      "name": "tail",
+      "width": 942,
+      "height": 1672,
+      "duration": 5.04,
+      "ended": true,
+      "luminance": 4778251
+    },
+    {
+      "name": "sleepDown",
+      "width": 942,
+      "height": 1672,
+      "duration": 4.04,
+      "ended": true,
+      "luminance": 4751779
+    },
+    {
+      "name": "sleeping",
+      "width": 942,
+      "height": 1672,
+      "duration": 5.04,
+      "ended": true,
+      "luminance": 4751110
+    },
+    {
+      "name": "wake",
+      "width": 942,
+      "height": 1672,
+      "duration": 8.04,
+      "ended": true,
+      "luminance": 4780340
+    },
+    {
+      "name": "bellyEnter",
+      "width": 942,
+      "height": 1672,
+      "duration": 4.04,
+      "ended": true,
+      "luminance": 4784680
+    },
+    {
+      "name": "bellyReturn",
+      "width": 942,
+      "height": 1672,
+      "duration": 4.04,
+      "ended": true,
+      "luminance": 4744488
+    },
+    {
+      "name": "bellySleeping",
+      "width": 942,
+      "height": 1672,
+      "duration": 5.04,
+      "ended": true,
+      "luminance": 4757969
+    },
+    {
+      "name": "bellyWake",
+      "width": 942,
+      "height": 1672,
+      "duration": 6.04,
+      "ended": true,
+      "luminance": 4751789
+    },
+    {
+      "name": "pawScratch",
+      "width": 942,
+      "height": 1672,
+      "duration": 6.013991,
+      "ended": true,
+      "luminance": 4750967
+    },
+    {
+      "name": "headPet",
+      "width": 942,
+      "height": 1672,
+      "duration": 8.057324,
+      "ended": true,
+      "luminance": 4769113
+    },
+    {
+      "name": "bodyScratch",
+      "width": 942,
+      "height": 1672,
+      "duration": 4.04,
+      "ended": true,
+      "luminance": 4784306
+    },
+    {
+      "name": "mouseLook",
+      "width": 942,
+      "height": 1672,
+      "duration": 5.04,
+      "ended": true,
+      "luminance": 4781554
+    }
+  ],
+  "errors": []
+}
