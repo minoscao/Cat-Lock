@@ -1,0 +1,34 @@
+{
+  "errors": [],
+  "transitions": [
+    {
+      "at": 5310.199999809265,
+      "count": 1
+    },
+    {
+      "at": 10416.5,
+      "count": 1
+    }
+  ],
+  "seeks": [
+    0.24,
+    0.48,
+    0.72,
+    0.96,
+    1.2,
+    1.44,
+    1.68,
+    1.9
+  ],
+  "checks": [
+    "head-release",
+    "stale-idle-slot",
+    "full-scratch",
+    "gaze-intermediate-poses",
+    "rapid-taps",
+    "reminder-return",
+    "automatic-transitions",
+    "single-overlay",
+    "cacheable-sources"
+  ]
+}

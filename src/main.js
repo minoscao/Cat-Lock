@@ -328,9 +328,9 @@ const catActions = {
   bellySleeping: { source: '/videos/cat/unified-head-v3/belly-loop.mp4', duration: 5040 },
   bellyWake: { source: '/videos/cat/unified-head-v3/belly-wake.mp4', sound: '/audio/belly-wake-meow.mp4', duration: 6080 },
   pawScratch: { source: '/videos/cat/unified-head-v3/paw-scratch-composited.mp4', sound: '/audio/paw-scratch-meow.mp3', duration: 6040, composited: true },
-  headPet: { source: '/videos/cat/scene-figure-layout-controls/head-pet-edge-trial-v3.mp4', duration: 8040, composited: true, instantEnd: true },
-  bodyScratch: { source: '/videos/cat/unified-head-v3/body-scratch-composited.mp4', useVideoAudio: true, duration: 4040, composited: true, instantEnd: true, stopAt: 2.2 },
-  mouseLook: { source: '/videos/cat/unified-head-v3/mouse-look-composited.mp4', duration: 5030, composited: true, instantEnd: true }
+  headPet: { source: '/videos/cat/scene-figure-layout-controls/head-pet-edge-trial-v3.mp4', duration: 8040, composited: true },
+  bodyScratch: { source: '/videos/cat/unified-head-v3/body-scratch-composited.mp4', useVideoAudio: true, duration: 4040, composited: true },
+  mouseLook: { source: '/videos/cat/unified-head-v3/mouse-look-composited.mp4', duration: 5030, composited: true }
 };
 const ACTION_PAUSE_MS = 8 * 1000;
 const FOCUS_REWARD_MINIMUM_SECONDS = 25 * 60;
@@ -2338,6 +2338,8 @@ function render() {
 function clearCatVideo() {
   clearTimeout(catPauseTimer);
   clearTimeout(catPlaybackTimer);
+  document.querySelector('.cat-transition-frame')?.remove();
+  activeCatInteraction = null;
   clearTimeout(catChromaSettleTimer);
   clearTimeout(catActionSoundTimer);
   clearTimeout(catInteractionResumeTimer);
@@ -2418,18 +2420,43 @@ function stopHeldCatInteraction() {
   activeChromaVideo?.pause();
   activeChromaVideo = undefined;
   clearTimeout(catActionSoundTimer);
-  const idleVideo = document.querySelector('.cat-animation');
-  if (idleVideo) {
-    idleVideo.loop = true;
-    idleVideo.currentTime = 0;
-    idleVideo.classList.add('is-active');
-    idleVideo.play().catch(() => {});
+  returnToCatIdle(() => finishCatInteraction(interaction));
+}
+function beginCatTransition() {
+  const layer = document.querySelector('.cat-video-layer');
+  const canvas = document.querySelector('#catChromaCanvas.is-active');
+  const video = document.querySelector('.cat-animation.is-active');
+  const source = canvas || video;
+  if (!layer || !source || (!canvas && video.readyState < 2)) return;
+  const frame = document.createElement('canvas');
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  frame.width = Math.round(layer.clientWidth * ratio);
+  frame.height = Math.round(layer.clientHeight * ratio);
+  if (!frame.width || !frame.height) return;
+  frame.className = 'cat-transition-frame';
+  const context = frame.getContext('2d');
+  if (canvas) context.drawImage(canvas, 0, 0, frame.width, frame.height);
+  else drawCompositedCatFrame(context, frame, video);
+  const previous = layer.querySelector('.cat-transition-frame');
+  if (previous) {
+    context.globalAlpha = Number(getComputedStyle(previous).opacity);
+    context.drawImage(previous, 0, 0, frame.width, frame.height);
+    previous.remove();
   }
-  const canvas = document.querySelector('#catChromaCanvas');
-  canvas?.classList.add('is-instant');
-  canvas?.classList.remove('is-active');
-  requestAnimationFrame(() => canvas?.classList.remove('is-instant'));
-  finishCatInteraction(interaction);
+  layer.append(frame);
+  // Keep an opaque incoming frame underneath; fading both layers exposes the room.
+  const animation = frame.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, easing: 'ease-out', fill: 'forwards' });
+  animation.onfinish = () => frame.remove();
+}
+function returnToCatIdle(onReady) {
+  playCatVideo(catActions.idle.source, undefined, true, false, () => {
+    const canvas = document.querySelector('#catChromaCanvas');
+    canvas?.classList.add('is-instant');
+    canvas?.classList.remove('is-active');
+    requestAnimationFrame(() => canvas?.classList.remove('is-instant'));
+    clearTimeout(catChromaSettleTimer);
+    catChromaSettleTimer = setTimeout(() => onReady?.(), 140);
+  });
 }
 function drawCompositedCatFrame(context, canvas, video) {
   context.clearRect(0, 0, canvas.width, canvas.height);
@@ -2475,6 +2502,8 @@ function startCatLook(event) {
   video.onloadeddata = () => {
     if (activeCatInteraction !== interaction || activeChromaVideo !== video) return;
     const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+  video.onended = null;
+  video.onseeked = null;
     canvas.width = Math.round(canvas.clientWidth * pixelRatio);
     canvas.height = Math.round(canvas.width * canvas.clientHeight / canvas.clientWidth);
     updateCatLookFrame(interaction);
@@ -2502,6 +2531,7 @@ function updateCatLookFrame(interaction) {
     drawCompositedCatFrame(context, canvas, video);
     if (!interaction.firstFrameDrawn) {
       interaction.firstFrameDrawn = true;
+    if (!interaction.firstFrameDrawn) beginCatTransition();
       canvas.classList.add('is-active', 'is-instant');
       requestAnimationFrame(() => canvas.classList.remove('is-instant'));
       document.querySelectorAll('.cat-animation').forEach(idleVideo => {
@@ -2510,13 +2540,17 @@ function updateCatLookFrame(interaction) {
       });
     }
   };
-  const targetTime = interaction.time;
+  const difference = interaction.time - video.currentTime;
+  const previousTime = video.currentTime;
+  const targetTime = previousTime + Math.sign(difference) * Math.min(Math.abs(difference), .24);
   video.onseeked = () => {
     interaction.seeking = false;
     draw();
     if (Math.abs(video.currentTime - interaction.time) >= .04) updateCatLookFrame(interaction);
   };
   if (Math.abs(video.currentTime - interaction.time) < .04) draw();
+    // Servers without byte-range support can clamp seeks to the current frame.
+    if (Math.abs(video.currentTime - previousTime) < .001) return;
   else {
     interaction.seeking = true;
     video.currentTime = targetTime;
@@ -2543,7 +2577,8 @@ function playChromaCatVideo(action, onEnded, loop = false, shouldLoop = () => !r
   let drawFrame;
   let firstFrameDrawn = false;
   let actionSoundPlayed = false;
-  video.addEventListener('loadeddata', () => {
+  video.onseeked = null;
+  video.onloadeddata = () => {
     if (activeChromaVideo !== video) return;
     const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.round(canvas.clientWidth * pixelRatio);
@@ -2555,6 +2590,7 @@ function playChromaCatVideo(action, onEnded, loop = false, shouldLoop = () => !r
       context.clearRect(0, 0, canvas.width, canvas.height);
       if (action.composited) {
         drawCompositedCatFrame(context, canvas, video);
+      if (!firstFrameDrawn) beginCatTransition();
       } else {
         drawRoomArtFrame(context, canvas);
       if (action.cropSquare) {
@@ -2628,7 +2664,7 @@ function playChromaCatVideo(action, onEnded, loop = false, shouldLoop = () => !r
       }
     }).catch(() => {});
     drawFrame();
-  }, { once: true });
+  };
   video.src = action.source;
   video.load();
   video.onended = () => {
@@ -2650,38 +2686,21 @@ function playChromaCatVideo(action, onEnded, loop = false, shouldLoop = () => !r
     activeChromaVideo = undefined;
     stopCatWakeSound();
     if (action.composited) {
-      // Hold the final paw frame over the idle loop so differently cut source clips never hard-cut.
-      const idleVideo = document.querySelector('.cat-animation');
-      if (idleVideo) {
-        idleVideo.loop = true;
-        idleVideo.currentTime = 0;
-        idleVideo.classList.add('is-active');
-        idleVideo.play().catch(() => {});
-      }
-      if (action.instantEnd) {
-        canvas.classList.add('is-instant');
-        canvas.classList.remove('is-active');
-        requestAnimationFrame(() => canvas.classList.remove('is-instant'));
-        onEnded?.();
-        return;
-      }
-      requestAnimationFrame(() => canvas.classList.remove('is-active'));
-      catChromaSettleTimer = setTimeout(() => onEnded?.(), 340);
+      returnToCatIdle(onEnded);
       return;
     }
     canvas.classList.remove('is-active');
     onEnded?.();
   };
 }
-function playCatVideo(source, onEnded, loop = false, playSound = true) {
+function playCatVideo(source, onEnded, loop = false, playSound = true, onReady) {
   clearTimeout(catPlaybackTimer);
   const videos = [...document.querySelectorAll('.cat-animation')];
   if (!videos.length) return;
   const action = Object.values(catActions).find(item => item.source === source);
-  const playbackId = `${source}?play=${Date.now()}`;
+  const playbackId = Symbol(source);
   const nextSlot = activeCatSlot === 0 ? 1 : 0;
   const nextVideo = videos[nextSlot];
-  const currentVideo = activeCatSlot >= 0 ? videos[activeCatSlot] : undefined;
   activeCatPlayback = playbackId;
   nextVideo.onloadeddata = () => {
     if (activeCatPlayback !== playbackId) return;
@@ -2694,13 +2713,18 @@ function playCatVideo(source, onEnded, loop = false, playSound = true) {
       activeCatPlayback = undefined;
       onEnded?.();
     };
-    currentVideo?.pause();
-    currentVideo?.classList.remove('is-active');
+    beginCatTransition();
+    videos.forEach(video => {
+      if (video === nextVideo) return;
+      video.pause();
+      video.classList.remove('is-active');
+    });
     nextVideo.classList.add('is-active');
     activeCatSlot = nextSlot;
     nextVideo.play().then(() => {
       if (playSound && action?.sound) playCatWakeSound(action.sound);
     }).catch(() => {});
+    onReady?.();
     if (!loop) {
       catPlaybackTimer = setTimeout(() => {
         if (activeCatPlayback !== playbackId) return;
@@ -2709,7 +2733,7 @@ function playCatVideo(source, onEnded, loop = false, playSound = true) {
       }, (action?.duration || 5000) + 500);
     }
   };
-  nextVideo.src = playbackId;
+  nextVideo.src = source;
   nextVideo.load();
 }
 function catSceneIsAvailable() {
